@@ -5,16 +5,18 @@ import { X, MessageSquare, LogOut } from "lucide-react"
 import ChannelList from './ChannelList';
 import DirectMessageList from './DirectMessageList';
 import NewDmModal from './NewDmModal';
-import useChannels from '../hooks/useChannels';
+// import useChannels from '../hooks/useChannels'; // Removed
 import { useChat } from '../context/ChatContext';
 import { useAuth } from '@/context/AuthContext';
 
-const Sidebar = ({ currentUser, onClose }) => {
+import { useNavigate } from 'react-router-dom';
+
+const Sidebar = ({ currentUser, onClose, channelsData }) => {
     const [isNewDmOpen, setIsNewDmOpen] = useState(false);
-    const channelsData = useChannels(); // Shared State
+    // const channelsData = useChannels(); // Removed: Passed via props
     const { getDmChannelId, joinedChannels } = channelsData;
-    const { setCurrentChannel } = useChat();
     const { signOut } = useAuth();
+    const navigate = useNavigate();
 
     const handleSelectUser = async (userId) => {
         try {
@@ -22,16 +24,13 @@ const Sidebar = ({ currentUser, onClose }) => {
             const existingDm = joinedChannels.find(c => c.type === 'dm' && c.otherUserId === userId);
             
             if (existingDm) {
-                setCurrentChannel(existingDm);
+                navigate(`/dm/${existingDm.id}`);
                 setIsNewDmOpen(false);
             } else {
-                // Create new one and switch immediately
+                // Create new one and switch
                 const newChannel = await getDmChannelId(userId);
-                setCurrentChannel(newChannel);
+                navigate(`/dm/${newChannel.id}`);
                 setIsNewDmOpen(false);
-                // Also refresh list so it appears in sidebar persistently
-                // (Though subscription might handle it, manual refresh is safer for complex DM logic)
-                // refresh(); 
             }
         } catch (error) {
             console.error("Failed to create DM", error);

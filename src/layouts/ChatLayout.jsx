@@ -7,39 +7,67 @@ import { useChat } from '@/features/chat/context/ChatContext';
 import useMessages from '@/features/chat/hooks/useMessages';
 import usePresence from '@/features/chat/hooks/usePresence';
 import useChannels from '@/features/chat/hooks/useChannels';
-import { Menu } from "lucide-react";
+import { Menu, Share2, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const ChatLayout = () => {
     const { user, pubnub, setCurrentChannel, currentChannel } = useChat();
     
     // Navigation & URL Logic
-    const { channelId, type } = useParams(); // URL params: /channel/:channelId
+    const { channelId } = useParams(); // URL params: /channel/:channelId
     const navigate = useNavigate();
 
     // Hoisted State: Layout manages the data now
     const channelsData = useChannels();
-    const { joinedChannels, loading: channelsLoading } = channelsData;
+    const { joinedChannels, joinChannel, loading: channelsLoading } = channelsData;
 
-    // Sync URL with Context
+    // Sync URL with Context & Auto-Join
     useEffect(() => {
-        if (!channelsLoading && channelId && joinedChannels.length > 0) {
+        const handleChannelSync = async () => {
+            if (channelsLoading || !channelId) return;
+
             const selected = joinedChannels.find(c => c.id === channelId);
-            // Only update if different to prevent loops
-            if (selected && selected.id !== currentChannel?.id) {
-                setCurrentChannel(selected);
-            } else if (!selected) {
-                 // Handle 404 - Channel not found or not joined
-                 // For now, perhaps redirect to home or show error?
-                 // console.warn("Channel from URL not found in joined list.");
+            
+            if (selected) {
+                 // Already joined, set current
+                 if (selected.id !== currentChannel?.id) {
+                     setCurrentChannel(selected);
+                 }
+            } else {
+                 // Not joined? Try to auto-join (Deep Link Logic)
+                 console.log(`Auto-joining channel: ${channelId}`);
+                 const success = await joinChannel(channelId);
+                 if (!success) {
+                     console.error("Failed to auto-join channel from URL.");
+                     // Optionally redirect or show error
+                 }
+                 // If success, joinedChannels will update (via state setter in hook), 
+                 // triggering this effect again to set selected.
             }
-        }
-    }, [channelId, joinedChannels, channelsLoading, setCurrentChannel, currentChannel]);
+        };
+        
+        handleChannelSync();
+    }, [channelId, joinedChannels, channelsLoading, setCurrentChannel, currentChannel, joinChannel]);
 
     // Messages & Presence
     const { messages, sendMessage, channel } = useMessages(user);
     const { onlineUsers, typingUsers, sendTypingSignal } = usePresence(user);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+    
+    // Copy State
+    const [copied, setCopied] = useState(false);
+    const handleCopyLink = () => {
+        const url = window.location.href;
+        navigator.clipboard.writeText(url);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
 
     return (
         <div className="h-screen w-screen flex bg-background overflow-hidden font-sans">
@@ -74,25 +102,51 @@ const ChatLayout = () => {
                             <Menu className="h-5 w-5" />
                         </Button>
                         <div className="flex flex-col">
-                            <h2 className="text-sm font-bold text-foreground">
+                            <h2 className="text-sm font-bold text-foreground flex items-center gap-2">
                                 {currentChannel ? (currentChannel.isDm ? currentChannel.name : `#${currentChannel.name}`) : 'Select a Channel'}
+                                {currentChannel?.type === 'private' && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border">Private</span>}
                             </h2>
                             <span className="text-xs text-muted-foreground animate-pulse">
-                                {typingUsers.length > 0 
-                                    ? <span className="text-primary font-medium">Someone is typing...</span>
-                                    : `${onlineUsers.length} Online`}
+                                {typingUsers.length > 0 && <span className="text-primary font-medium">Someone is typing...</span>}
                             </span>
                         </div>
                     </div>
+                    
+                    {/* Share Button */}
+                    {currentChannel && !currentChannel.isDm && (
+                        <div className="flex items-center">
+                            <TooltipProvider>
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <Button variant="ghost" size="icon" onClick={handleCopyLink} className="text-muted-foreground hover:text-primary">
+                                            {copied ? <Check className="h-4 w-4 text-green-500" /> : <Share2 className="h-4 w-4" />}
+                                        </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                        <p>{copied ? 'Copied!' : 'Share Channel Link'}</p>
+                                    </TooltipContent>
+                                </Tooltip>
+                            </TooltipProvider>
+                        </div>
+                    )}
                 </header>
 
-                {!currentChannel ? (
+                {!currentChannel || (channelId && currentChannel.id !== channelId) ? (
                     <div className="flex-1 flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
-                        <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4">
-                            <Menu className="h-8 w-8 opacity-50" />
-                        </div>
-                        <h3 className="text-xl font-semibold mb-2">No Channel Selected</h3>
-                        <p>Choose a channel from the sidebar to start chatting.</p>
+                        {channelId && currentChannel?.id !== channelId ? (
+                             <div className="flex flex-col items-center gap-2">
+                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                                <p>Loading channel...</p>
+                            </div>
+                        ) : (
+                            <>
+                                <div className="h-16 w-16 bg-muted rounded-full flex items-center justify-center mb-4">
+                                    <Menu className="h-8 w-8 opacity-50" />
+                                </div>
+                                <h3 className="text-xl font-semibold mb-2">No Channel Selected</h3>
+                                <p>Choose a channel from the sidebar to start chatting.</p>
+                            </>
+                        )}
                     </div>
                 ) : (
                     <>

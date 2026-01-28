@@ -15,11 +15,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ConfirmDialog from "@/components/ui/ConfirmDialog";
 
-const ChannelList = ({ publicChannels, createChannel, updateChannel, deleteChannel, loading, error, refresh }) => {
+import { useNavigate } from 'react-router-dom';
+
+const ChannelList = ({ publicChannels, joinedChannels, createChannel, updateChannel, deleteChannel, loading, error, refresh }) => {
     // const { ... } = useChannels(); // Removed: Uses props now
-    const { setCurrentChannel, currentChannel, user } = useChat(); // Need to implement setCurrentChannel in Context
+    const { currentChannel, user } = useChat(); 
+    const navigate = useNavigate();
     const [isCreateOpen, setIsCreateOpen] = useState(false);
     const [newChannelName, setNewChannelName] = useState('');
+    const [isPrivate, setIsPrivate] = useState(false);
     const [isCreating, setIsCreating] = useState(false);
     
     // Delete State
@@ -42,7 +46,7 @@ const ChannelList = ({ publicChannels, createChannel, updateChannel, deleteChann
                      setCurrentChannel(prev => ({ ...prev, name: newChannelName }));
                 }
             } else {
-                await createChannel(newChannelName);
+                await createChannel(newChannelName, '', isPrivate);
             }
             setIsCreateOpen(false);
             setNewChannelName('');
@@ -57,6 +61,7 @@ const ChannelList = ({ publicChannels, createChannel, updateChannel, deleteChann
     const openCreate = () => {
         setEditingChannel(null);
         setNewChannelName('');
+        setIsPrivate(false);
         setIsCreateOpen(true);
     };
 
@@ -124,11 +129,75 @@ const ChannelList = ({ publicChannels, createChannel, updateChannel, deleteChann
                     </div>
                 )}
                 
+                {/* Private Channels List */}
+                {joinedChannels.filter(c => c.type === 'private').length > 0 && (
+                    <div className="mb-4">
+                        <div className="px-2 mb-1">
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider opacity-70">
+                                Private
+                            </span>
+                        </div>
+                        {joinedChannels.filter(c => c.type === 'private').map(channel => (
+                            <div key={channel.id} className="group flex items-center justify-between w-full pr-2">
+                                <button
+                                    onClick={() => navigate(`/channel/${channel.id}`)}
+                                    className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left ${
+                                        currentChannel?.id === channel.id 
+                                            ? 'bg-primary/10 text-primary font-medium' 
+                                            : 'text-muted-foreground hover:bg-muted/50 hover:text-foreground'
+                                    }`}
+                                >
+                                    <Lock className="h-3 w-3 opacity-70 flex-shrink-0" />
+                                    <div className="flex flex-col overflow-hidden text-left">
+                                        <span className="truncate">{channel.name}</span>
+                                        {user?.id === channel.created_by && <span className="text-[10px] text-muted-foreground">Created by You</span>}
+                                        {user?.id !== channel.created_by && <span className="text-[10px] text-muted-foreground">Joined</span>}
+                                    </div>
+                                </button>
+                                 
+                                 {/* Edit/Delete for Creator */}
+                                 {user?.id === channel.created_by && (
+                                     <div className="flex items-center">
+                                         <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            className="h-6 w-6"
+                                            onClick={(e) => openEdit(e, channel)}
+                                        >
+                                            <Pencil className="h-3 w-3 text-muted-foreground hover:text-primary" />
+                                        </Button>
+
+                                         <Button 
+                                            variant="ghost" 
+                                            size="icon" 
+                                            className="h-6 w-6"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setChannelToDelete(channel);
+                                                setConfirmOpen(true);
+                                            }}
+                                        >
+                                            <X className="h-3 w-3 text-muted-foreground hover:text-destructive" />
+                                        </Button>
+                                     </div>
+                                 )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {/* Public Channels List */}
-                {publicChannels.map(channel => (
+                {publicChannels.length > 0 && (
+                    <div className="mb-2">
+                         <div className="px-2 mb-1">
+                            <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider opacity-70">
+                                Public
+                            </span>
+                        </div>
+                    {publicChannels.map(channel => (
                     <div key={channel.id} className="group flex items-center justify-between w-full pr-2">
                         <button
-                            onClick={() => setCurrentChannel(channel)}
+                            onClick={() => navigate(`/channel/${channel.id}`)}
                             className={`flex-1 flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors text-left ${
                                 currentChannel?.id === channel.id 
                                     ? 'bg-primary/10 text-primary font-medium' 
@@ -141,7 +210,7 @@ const ChannelList = ({ publicChannels, createChannel, updateChannel, deleteChann
                          
                          {/* Only show edit/delete for channel creator */}
                          {user?.id === channel.created_by && (
-                             <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                             <div className="flex items-center">
                                  {/* Edit Button */}
                                  <Button 
                                     variant="ghost" 
@@ -169,6 +238,8 @@ const ChannelList = ({ publicChannels, createChannel, updateChannel, deleteChann
                          )}
                     </div>
                 ))}
+                    </div>
+                )}
             </div>
 
             {/* Create/Edit Channel Modal */}
@@ -193,11 +264,27 @@ const ChannelList = ({ publicChannels, createChannel, updateChannel, deleteChann
                                     autoFocus
                                 />
                             </div>
+                            
+                            {!editingChannel && (
+                                <div className="flex items-center space-x-2">
+                                    <input
+                                        type="checkbox"
+                                        id="private"
+                                        checked={isPrivate}
+                                        onChange={(e) => setIsPrivate(e.target.checked)}
+                                        className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                                    />
+                                    <Label htmlFor="private" className="flex items-center gap-2 cursor-pointer">
+                                        <Lock className="h-3 w-3" />
+                                        Private Channel (Invite Only)
+                                    </Label>
+                                </div>
+                            )}
                         </div>
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>Cancel</Button>
                             <Button type="submit" disabled={!newChannelName.trim() || isCreating}>
-                                {editingChannel ? 'Save Changes' : 'Create Channel'}
+                                {editingChannel ? 'Save Changes' : (isPrivate ? 'Create Private Channel' : 'Create Public Channel')}
                             </Button>
                         </DialogFooter>
                     </form>
@@ -210,7 +297,7 @@ const ChannelList = ({ publicChannels, createChannel, updateChannel, deleteChann
                 onConfirm={() => {
                     if (channelToDelete) {
                         deleteChannel(channelToDelete.id);
-                        if(currentChannel?.id === channelToDelete.id) setCurrentChannel(null);
+                        if(currentChannel?.id === channelToDelete.id) navigate('/');
                         setChannelToDelete(null);
                     }
                 }}

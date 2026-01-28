@@ -5,8 +5,11 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Plus, X } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 
+import { useNavigate } from 'react-router-dom';
+
 const DirectMessageList = ({ onOpenNewDm, joinedChannels, deleteChannel }) => {
-    const { setCurrentChannel, currentChannel } = useChat();
+    const { currentChannel } = useChat();
+    const navigate = useNavigate();
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [channelToDelete, setChannelToDelete] = useState(null);
 
@@ -54,7 +57,7 @@ const DirectMessageList = ({ onOpenNewDm, joinedChannels, deleteChannel }) => {
                 {dmChannels.map(channel => (
                     <div key={channel.id} className="group relative">
                         <button
-                            onClick={() => setCurrentChannel(channel)}
+                            onClick={() => navigate(`/dm/${channel.id}`)}
                             className={`w-full flex items-center gap-3 px-2 py-2 rounded-md transition-colors pr-8 ${
                                 currentChannel?.id === channel.id 
                                     ? 'bg-primary/10' 

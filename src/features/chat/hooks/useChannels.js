@@ -46,7 +46,8 @@ const useChannels = () => {
                         id,
                         name,
                         type,
-                        description
+                        description,
+                        created_by
                     )
                 `)
                 .eq('user_id', user.id);
@@ -105,14 +106,14 @@ const useChannels = () => {
         fetchChannels();
     }, [fetchChannels]);
 
-    const createChannel = async (name, description = '') => {
+    const createChannel = async (name, description = '', isPrivate = false) => {
         // 1. Insert channel
         const { data, error } = await supabase
             .from('channels')
             .insert({
                 name,
                 description,
-                type: 'public',
+                type: isPrivate ? 'private' : 'public',
                 created_by: user.id
             })
             .select()
@@ -128,6 +129,14 @@ const useChannels = () => {
                 channel_id: data.id,
                 user_id: user.id
             });
+            
+            // Add to joined list immediately
+            setJoinedChannels(prev => [...prev, data]);
+            
+            // Only add to public list if public
+            if (!isPrivate) {
+                setPublicChannels(prev => [data, ...prev]);
+            }
         }
         
         return data;
@@ -169,6 +178,42 @@ const useChannels = () => {
         return channelObject;
     };
 
+    const joinChannel = async (channelId) => {
+        try {
+            const { error } = await supabase
+                .from('channel_members')
+                .insert({
+                    channel_id: channelId,
+                    user_id: user.id
+                });
+
+            if (error) {
+                // Ignore unique violation if already joined
+                if (error.code !== '23505') throw error;
+            }
+            
+            // Optimistic update? Better to refresh or fetch specific channel
+            // For now, let's just fetch the channel details to add to joined list
+            const { data: channelData } = await supabase
+                .from('channels')
+                .select('*')
+                .eq('id', channelId)
+                .single();
+                
+            if (channelData) {
+                 setJoinedChannels(prev => {
+                     if (prev.find(c => c.id === channelId)) return prev;
+                     return [...prev, channelData];
+                 });
+            }
+            
+            return true;
+        } catch (error) {
+            console.error("Error joining channel:", error);
+            return false;
+        }
+    };
+
     const updateChannel = async (channelId, newName) => {
          const { data, error } = await supabase
             .from('channels')
@@ -203,9 +248,10 @@ const useChannels = () => {
         joinedChannels,
         loading,
         createChannel,
-        updateChannel, // Export update function
+        updateChannel, 
         deleteChannel,
         getDmChannelId,
+        joinChannel,
         refresh: fetchChannels,
         error
     };

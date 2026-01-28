@@ -128,11 +128,14 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
     );
 });
 
+import { useNavigate } from 'react-router-dom';
+
 const MessageList = ({ messages, currentUser, channel }) => {
     const bottomRef = useRef(null);
     const [selectedUser, setSelectedUser] = useState(null);
     const { getDmChannelId, joinedChannels } = useChannels();
     const { setCurrentChannel } = useChat();
+    const navigate = useNavigate();
 
     // Auto-scroll to bottom on new message
     useEffect(() => {
@@ -147,14 +150,10 @@ const MessageList = ({ messages, currentUser, channel }) => {
             const existingDm = joinedChannels.find(c => c.type === 'dm' && c.otherUserId === selectedUser.id);
             
             if (existingDm) {
-                // If it exists, just switch to it. No refresh needed.
-                setCurrentChannel(existingDm);
+                navigate(`/dm/${existingDm.id}`);
             } else {
-                // If it doesn't exist, create/fetch it.
-                // getDmChannelId now handles the optimistic UI update, 
-                // so we don't need to manually refresh the whole list.
                 const newChannel = await getDmChannelId(selectedUser.id);
-                setCurrentChannel(newChannel);
+                navigate(`/dm/${newChannel.id}`);
             }
             setSelectedUser(null);
         } catch (error) {
