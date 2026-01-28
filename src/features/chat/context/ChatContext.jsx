@@ -35,6 +35,7 @@ export const ChatProvider = ({ children }) => {
   // Update PubNub UUID if user exists on mount/refresh
   useEffect(() => {
     if (user && pubnub) {
+       console.log("🔒 Setting PubNub UUID to:", user.id);
        pubnub.setUUID(user.id);
     }
   }, [user, pubnub]);

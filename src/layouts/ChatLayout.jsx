@@ -57,7 +57,7 @@ const ChatLayout = () => {
 
     // Messages & Presence
     const { messages, sendMessage, channel } = useMessages(user);
-    const { onlineUsers, typingUsers, sendTypingSignal } = usePresence(user);
+    const { onlineUsers, typingUsers, sendTypingSignal } = usePresence(user, currentChannel?.id);
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     
     // Copy State
@@ -107,7 +107,20 @@ const ChatLayout = () => {
                                 {currentChannel?.type === 'private' && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border">Private</span>}
                             </h2>
                             <span className="text-xs text-muted-foreground animate-pulse">
-                                {typingUsers.length > 0 && <span className="text-primary font-medium">Someone is typing...</span>}
+                                {typingUsers.length > 0 ? (
+                                     <span className="text-primary font-medium">Someone is typing...</span>
+                                ) : (
+                                    /* Show "Online" only for DM if the other person is there */
+                                    currentChannel?.isDm && onlineUsers.some(u => u.id === currentChannel.otherUserId) 
+                                        ? <span className="text-green-500 font-medium flex items-center gap-1">
+                                            <span className="relative flex h-2 w-2">
+                                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                                              <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                                            </span>
+                                            Online
+                                          </span>
+                                        : null
+                                )}
                             </span>
                         </div>
                     </div>
