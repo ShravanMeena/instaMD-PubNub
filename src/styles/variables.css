@@ -1,0 +1,76 @@
+:root {
+  /* Sumrly AI Inspired Palette */
+
+  /* Backgrounds - Deep Dark Violet/Black */
+  --bg-app: #030712;
+  /* Rich black equivalent */
+  --bg-panel: rgba(17, 24, 39, 0.4);
+  /* Glassy dark panel */
+  --bg-input: rgba(255, 255, 255, 0.05);
+  /* Extremely subtle white tint */
+
+  /* Text Colors */
+  --text-primary: #ffffff;
+  --text-secondary: #cbd5e1;
+  /* Light slate */
+  --text-muted: #94a3b8;
+
+  /* Brand/Accent Colors - Electric Violet/Purple */
+  --primary: #9333ea;
+  /* Strong Purple */
+  --primary-hover: #a855f7;
+  --secondary: #db2777;
+  /* Pink/Magenta */
+
+  /* The "Sumrly" Gradient */
+  --accent-gradient: linear-gradient(135deg, #a855f7 0%, #d946ef 100%);
+  --button-gradient: linear-gradient(90deg, #7c3aed 0%, #db2777 100%);
+  --glass-border: rgba(255, 255, 255, 0.08);
+
+  /* Status Colors */
+  --status-online: #34d399;
+  /* Emerald 400 - bright against dark */
+  --status-offline: #475569;
+
+  /* Shadows & Glows */
+  --shadow-sm: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+  --glow-primary: 0 0 20px rgba(168, 85, 247, 0.4);
+
+  /* Typography */
+  --font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+
+  /* Border Radius */
+  --radius-full: 9999px;
+  --radius-lg: 16px;
+  --radius-md: 12px;
+}
+
+/* Global Animations */
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-10px);
+  }
+
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+@keyframes glow-pulse {
+  0% {
+    box-shadow: 0 0 5px rgba(168, 85, 247, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(168, 85, 247, 0.6);
+  }
+
+  100% {
+    box-shadow: 0 0 5px rgba(168, 85, 247, 0.2);
+  }
+}
