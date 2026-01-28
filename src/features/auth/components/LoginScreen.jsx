@@ -61,13 +61,12 @@ const LoginScreen = () => {
             </div>
 
             <Card className="w-full max-w-[420px] border-border bg-card/80 backdrop-blur-xl shadow-2xl z-10">
-                <CardHeader className="flex flex-col items-center pb-6">
-                    <div className="mb-4 bg-primary/10 p-4 rounded-2xl grid place-items-center shadow-inner">
-                        <MessageSquare className="h-8 w-8 text-primary" />
+                <div className="flex flex-col items-center mb-8">
+                    <div className="h-32 w-32 mb-4 flex items-center justify-center">
+                        <img src="/src/assets/instamd_logo.png" alt="InstaMD" className="h-full w-full object-contain" />
                     </div>
-                    <CardTitle className="text-2xl font-bold tracking-tight">Supabase Chat</CardTitle>
-                    <CardDescription>Secure, real-time messaging</CardDescription>
-                </CardHeader>
+                    <p className="text-muted-foreground text-sm mt-2">Enter your details to join</p>
+                </div>
                 <CardContent>
                     <Tabs defaultValue="login" className="w-full">
                         <TabsList className="grid w-full grid-cols-2 mb-6">

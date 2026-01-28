@@ -3,6 +3,19 @@ import usePubNub from './usePubNub';
 
 const CHANNEL = 'demo-channel-v2';
 
+/**
+ * Hook to manage real-time presence and typing indicators.
+ * 
+ * @param {Object} user - The current authenticated user object.
+ * @param {string} user.id - Unique identifier for the user.
+ * @param {string} user.name - Display name of the user.
+ * @param {string} [currentChannelId] - The ID of the currently active channel.
+ * 
+ * @returns {Object} Presence state and methods.
+ * @returns {Array<Object>} onlineUsers - List of currently online users in the channel.
+ * @returns {Array<string>} typingUsers - List of user IDs currently typing.
+ * @returns {Function} sendTypingSignal - Function to broadcast typing status (true/false).
+ */
 const usePresence = (user, currentChannelId) => {
     const pubnub = usePubNub();
     const [onlineUsers, setOnlineUsers] = useState({});

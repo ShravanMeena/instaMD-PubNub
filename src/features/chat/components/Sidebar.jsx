@@ -41,10 +41,7 @@ const Sidebar = ({ currentUser, onClose, channelsData }) => {
         <div className="h-full flex flex-col p-4 bg-card border-r border-border w-[280px]">
             <div className="flex items-center justify-between mb-6 pl-2">
                 <div className="text-lg font-bold flex items-center gap-2 text-foreground">
-                    <div className="h-8 w-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground">
-                        <MessageSquare className="h-5 w-5" />
-                    </div>
-                    InstaMd PubNub
+                    <img src="/src/assets/instamd_logo.png" alt="InstaMD" className="h-8 w-auto object-contain" />
                 </div>
                 <Button variant="ghost" size="icon" className="md:hidden" onClick={onClose}>
                     <X className="h-5 w-5" />

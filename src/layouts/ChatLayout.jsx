@@ -6,6 +6,7 @@ import MessageInput from '@/features/chat/components/MessageInput';
 import { useChat } from '@/features/chat/context/ChatContext';
 import useMessages from '@/features/chat/hooks/useMessages';
 import usePresence from '@/features/chat/hooks/usePresence';
+import useConnectionStatus from '@/features/chat/hooks/useConnectionStatus';
 import useChannels from '@/features/chat/hooks/useChannels';
 import { Menu, Share2, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -56,8 +57,9 @@ const ChatLayout = () => {
     }, [channelId, joinedChannels, channelsLoading, setCurrentChannel, currentChannel, joinChannel]);
 
     // Messages & Presence
-    const { messages, sendMessage, channel } = useMessages(user);
+    const { messages, sendMessage, channel, fetchMore, hasMore, isLoadingMore } = useMessages(user);
     const { onlineUsers, typingUsers, sendTypingSignal } = usePresence(user, currentChannel?.id);
+    const { isConnected, isReconnecting } = useConnectionStatus();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     
     // Copy State
@@ -127,7 +129,15 @@ const ChatLayout = () => {
                     
                     {/* Share Button */}
                     {currentChannel && !currentChannel.isDm && (
-                        <div className="flex items-center">
+                        <div className="flex items-center gap-2">
+                             {/* Connection Status Indicator */}
+                             {!isConnected && (
+                                <div className="flex items-center gap-1.5 px-3 py-1 bg-red-100 text-red-600 rounded-full text-xs font-medium animate-pulse">
+                                    <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+                                    {isReconnecting ? "Reconnecting..." : "Offline"}
+                                </div>
+                             )}
+
                             <TooltipProvider>
                                 <Tooltip>
                                     <TooltipTrigger asChild>
@@ -165,7 +175,14 @@ const ChatLayout = () => {
                     <>
                         {/* Messages Area */}
                         <div className="flex-1 overflow-hidden relative flex flex-col">
-                           <MessageList messages={messages} currentUser={user} channel={channel} />
+                           <MessageList 
+                                messages={messages} 
+                                currentUser={user} 
+                                channel={channel} 
+                                fetchMore={fetchMore}
+                                hasMore={hasMore}
+                                isLoadingMore={isLoadingMore}
+                           />
                         </div>
 
                         {/* Input Area */}

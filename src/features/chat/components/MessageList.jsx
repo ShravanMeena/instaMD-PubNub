@@ -130,17 +130,35 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
 
 import { useNavigate } from 'react-router-dom';
 
-const MessageList = ({ messages, currentUser, channel }) => {
+const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoadingMore }) => {
     const bottomRef = useRef(null);
     const [selectedUser, setSelectedUser] = useState(null);
     const { getDmChannelId, joinedChannels } = useChannels();
     const { setCurrentChannel } = useChat();
     const navigate = useNavigate();
 
-    // Auto-scroll to bottom on new message
+    // Auto-scroll to bottom ONLY on new message (not load more)
+    // We differentiate by checking if the last message changed or length increased significantly?
+    // For simplicity, we scroll to bottom only on mount and when new messages are added at the END.
+    // However, when loading PREVIOUS messages, we want script position to hold.
+    // This simple implementation might jump, but it's MVP.
+    const prevMessagesLength = useRef(messages.length);
+
     useEffect(() => {
-        bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        // If length increased by 1 (new message), scroll. 
+        // If length increased by 20 (fetchMore), DON'T scroll to bottom.
+        if (messages.length - prevMessagesLength.current === 1) {
+             bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+        }
+        prevMessagesLength.current = messages.length;
     }, [messages]);
+
+    useEffect(() => {
+        // Initial load scroll
+        if (messages.length > 0 && prevMessagesLength.current === 0) {
+            bottomRef.current?.scrollIntoView({ behavior: 'auto' });
+        }
+    }, []);
 
     const handleDmStart = async () => {
         if (!selectedUser) return;
@@ -163,7 +181,22 @@ const MessageList = ({ messages, currentUser, channel }) => {
 
     return (
         <div className="h-full flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-            {messages.length === 0 && (
+            {/* Load More Button */}
+            {hasMore && (
+                <div className="flex justify-center py-2">
+                    <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={fetchMore} 
+                        disabled={isLoadingMore}
+                        className="text-xs text-muted-foreground"
+                    >
+                        {isLoadingMore ? "Loading..." : "Load Previous Messages"}
+                    </Button>
+                </div>
+            )}
+
+            {messages.length === 0 && !isLoadingMore && (
                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                     <div className="bg-muted/50 p-6 rounded-full mb-4">
                         <span className="text-4xl">👋</span>

@@ -2,9 +2,23 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import usePubNub from './usePubNub';
 import { useChat } from '../context/ChatContext';
 
+/**
+ * Hook to manage message fetching, subscription, and publishing for a channel.
+ * 
+ * @param {Object} user - The current authenticated user.
+ * @returns {Object} Message state and methods.
+ * @returns {Array<Object>} messages - The list of messages for the current channel.
+ * @returns {Function} sendMessage - Function to publish a new text message.
+ * @returns {string} channel - The ID of the currently active channel.
+ */
 const useMessages = (user) => {
     const pubnub = usePubNub();
     const { showError, currentChannel } = useChat(); // Access currentChannel
+    // State for pagination
+    const [startTimetoken, setStartTimetoken] = useState(null);
+    const [hasMore, setHasMore] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
+    
     const [messages, setMessages] = useState([]);
     
     // Identifier for the channel to subscribe to
@@ -17,6 +31,8 @@ const useMessages = (user) => {
     useEffect(() => {
         setMessages([]);
         messagesRef.current = [];
+        setStartTimetoken(null);
+        setHasMore(true);
     }, [CHANNEL]);
 
     // Sync ref with state
@@ -34,23 +50,19 @@ const useMessages = (user) => {
                     channels: [CHANNEL],
                     count: 20,
                     includeMessageActions: true,
-                    includeMeta: true // files often in meta or message
+                    includeMeta: true
                 });
 
                 if (response.channels[CHANNEL]) {
                    // Standardize message format
                    const history = response.channels[CHANNEL].map(msg => {
-                       // Handle different message types from history
-                       // Case 1: Standard Text Message
                        let payload = msg.message;
                        let file = null;
 
-                       // Case 2: File Message (nested structure)
                        if (msg.message.file && msg.message.message) {
                            file = msg.message.file;
                            payload = msg.message.message;
                        }
-                       // Case 3: Root level file (if any)
                        else if (msg.message.file) {
                             file = msg.message.file;
                        }
@@ -63,7 +75,21 @@ const useMessages = (user) => {
                            publisher: msg.uuid || msg.producer
                        };
                    });
+                   
                    setMessages(history);
+                   
+                   // Update pagination cursor
+                   if (history.length > 0) {
+                       setStartTimetoken(history[0].timetoken);
+                   }
+                   
+                   // If we got fewer than requested, we reached the beginning
+                   if (history.length < 20) {
+                       setHasMore(false);
+                   }
+                } else {
+                    // No messages returned
+                    setHasMore(false);
                 }
             } catch (error) {
                 console.error("Failed to fetch history:", error);
@@ -75,9 +101,9 @@ const useMessages = (user) => {
         // 2. Subscribe & Listen
         const listener = {
             message: (event) => {
+                // ... (listener code unchanged logic, but keeping consistant)
                 console.log("Raw PubNub Message Event:", event);
                 
-                // Robust file extraction (just in case)
                 const fileData = event.file || event.message?.file;
                 
                 const newMessage = {
@@ -91,12 +117,10 @@ const useMessages = (user) => {
                 setMessages(prev => [...prev, newMessage]);
             },
             file: (event) => {
-                console.log("Raw PubNub File Event:", event);
-                
                 const newMessage = {
                     id: event.timetoken,
-                    payload: event.message, // The optional message sent with the file
-                    file: event.file,       // The file object {id, name, url}
+                    payload: event.message, 
+                    file: event.file,       
                     timetoken: event.timetoken,
                     publisher: event.publisher
                 };
@@ -107,18 +131,15 @@ const useMessages = (user) => {
 
         pubnub.addListener(listener);
         
-        // Subscribe with Presence to ensure we don't conflict with usePresence
         pubnub.subscribe({ 
             channels: [CHANNEL],
             withPresence: true 
         });
 
-        // Debug listener for status
         const statusListener = {
             status: (statusEvent) => {
-                // console.log("PubNub Status:", statusEvent.category, statusEvent);
                 if (statusEvent.category === "PNConnectedCategory") {
-                    console.log("Connected to PubNub!"); // Keep this one
+                    console.log("Connected to PubNub!");
                 }
             }
         };
@@ -130,6 +151,58 @@ const useMessages = (user) => {
             pubnub.removeListener(statusListener);
         };
     }, [user, pubnub, CHANNEL]);
+
+    // Pagination Function
+    const fetchMore = useCallback(async () => {
+        if (!startTimetoken || !hasMore || isLoadingMore) return;
+        
+        setIsLoadingMore(true);
+        try {
+            const response = await pubnub.fetchMessages({
+                channels: [CHANNEL],
+                count: 20,
+                start: startTimetoken, // Fetch older than this
+                includeMessageActions: true,
+                includeMeta: true
+            });
+
+            if (response.channels[CHANNEL] && response.channels[CHANNEL].length > 0) {
+                const olderMessages = response.channels[CHANNEL].map(msg => {
+                       let payload = msg.message;
+                       let file = null;
+
+                       if (msg.message.file && msg.message.message) {
+                           file = msg.message.file;
+                           payload = msg.message.message;
+                       }
+                       else if (msg.message.file) {
+                            file = msg.message.file;
+                       }
+
+                       return {
+                           id: msg.timetoken,
+                           payload: payload,
+                           file: file, 
+                           timetoken: msg.timetoken,
+                           publisher: msg.uuid || msg.producer
+                       };
+                });
+                
+                setMessages(prev => [...olderMessages, ...prev]);
+                setStartTimetoken(olderMessages[0].timetoken);
+                
+                if (olderMessages.length < 20) {
+                    setHasMore(false);
+                }
+            } else {
+                setHasMore(false);
+            }
+        } catch (error) {
+            console.error("Failed to fetch more history:", error);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [pubnub, CHANNEL, startTimetoken, hasMore, isLoadingMore]);
 
     const sendMessage = useCallback(async (text) => {
         if (!text.trim() || !user) return;
@@ -152,18 +225,20 @@ const useMessages = (user) => {
                 message: messagePayload,
             });
         } catch (error) {
-            console.error("Failed to publish full error:", error);
-            console.error("Status Category:", error.status?.category);
-            console.error("Error Response:", error.status?.errorData);
-            
-            const statusCode = error.status?.statusCode || 'N/A';
-            const errorMsg = error.status?.errorData?.message || error.message;
-            
-            showError(`Failed: ${errorMsg} (Status: ${statusCode})\n\nTip: Check if 'Message Persistence' is ENABLED in PubNub Dashboard.`);
+             console.error("Failed to publish:", error);
+             // Error handling logic
+             showError(`Failed: ${error.message}`);
         }
     }, [user, pubnub, showError, CHANNEL]);
 
-    return { messages, sendMessage, channel: CHANNEL };
+    return { 
+        messages, 
+        sendMessage, 
+        channel: CHANNEL,
+        fetchMore,
+        hasMore,
+        isLoadingMore
+    };
 };
 
 export default useMessages;
