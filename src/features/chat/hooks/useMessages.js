@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import usePubNub from './usePubNub';
 import { useChat } from '../context/ChatContext';
 import useNotification from './useNotification';
+import logger from '@/utils/logger';
 
 /**
  * Hook to manage message fetching, subscription, and publishing for a channel.
@@ -88,7 +89,7 @@ const useMessages = (user) => {
                     setHasMore(false);
                 }
             } catch (error) {
-                console.error("Failed to fetch history:", error);
+                logger.error("Failed to fetch history:", error);
             }
         };
 
@@ -237,7 +238,7 @@ const useMessages = (user) => {
                 setHasMore(false);
             }
         } catch (error) {
-            console.error("Failed to fetch more:", error);
+            logger.error("Failed to fetch more:", error);
         } finally {
             setIsLoadingMore(false);
         }
@@ -270,7 +271,7 @@ const useMessages = (user) => {
         try {
             await pubnub.publish({ channel: CHANNEL, message: messagePayload });
         } catch (error) {
-             console.error("Failed to publish:", error);
+             logger.error("Failed to publish:", error);
              showError(`Failed: ${error.message}`);
              setMessages(prev => prev.map(m => m.clientMessageId === clientMessageId ? { ...m, status: 'error' } : m));
         }
@@ -288,7 +289,7 @@ const useMessages = (user) => {
                 }
             });
         } catch (e) {
-            console.error("Failed to add reaction:", e);
+            logger.error("Failed to add reaction:", e);
         }
     }, [pubnub, CHANNEL]);
 
@@ -301,7 +302,7 @@ const useMessages = (user) => {
                 actionTimetoken: actionTimetoken
             });
         } catch (e) {
-            console.error("Failed to remove reaction:", e);
+            logger.error("Failed to remove reaction:", e);
         }
     }, [pubnub, CHANNEL]);
 

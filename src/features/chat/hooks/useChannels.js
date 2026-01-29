@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import logger from '@/utils/logger';
 
 const useChannels = () => {
     const { user } = useAuth();
@@ -82,7 +83,7 @@ const useChannels = () => {
             setJoinedChannels([...publicJoined, ...dmsWithMetadata]);
 
         } catch (error) {
-            console.error("Error fetching channels:", error);
+            logger.error("Error fetching channels:", error);
         } finally {
             setLoading(false);
         }
@@ -199,7 +200,7 @@ const useChannels = () => {
             
             return true;
         } catch (error) {
-            console.error("Error joining channel:", error);
+            logger.error("Error joining channel:", error);
             return false;
         }
     };

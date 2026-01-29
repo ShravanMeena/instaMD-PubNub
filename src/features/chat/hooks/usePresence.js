@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import usePubNub from './usePubNub';
+import logger from '@/utils/logger';
 
 const CHANNEL = 'demo-channel-v2';
 
@@ -30,7 +31,7 @@ const usePresence = (user, currentChannelId) => {
         // FIX: Enforce UUID is set to the current user ID before interacting
         // This prevents race conditions where we subscribe with a default/temp UUID
         if (user.id && pubnub.getUUID() !== user.id) {
-             console.log("🔄 Force Switching PubNub UUID to match Auth User:", user.id);
+             logger.log("🔄 Force Switching PubNub UUID to match Auth User:", user.id);
              pubnub.setUUID(user.id);
         }
 
@@ -51,7 +52,7 @@ const usePresence = (user, currentChannelId) => {
                 
                 if (response.channels[CHANNEL]) {
                     const occupants = response.channels[CHANNEL].occupants;
-                    console.log(`🕵️ HereNow (${CHANNEL}):`, occupants.length, "occupants", occupants);
+                    logger.log(`🕵️ HereNow (${CHANNEL}):`, occupants.length, "occupants", occupants);
                     const usersMap = {};
                     occupants.forEach(occ => {
                          usersMap[occ.uuid] = {
@@ -61,11 +62,11 @@ const usePresence = (user, currentChannelId) => {
                              isOnline: true
                          };
                     });
-                    console.log("✅ State Update: Online Users:", Object.keys(usersMap));
+                    logger.log("✅ State Update: Online Users:", Object.keys(usersMap));
                     setOnlineUsers(usersMap);
                 }
             } catch (e) {
-                console.error("HereNow Error:", e);
+                logger.error("HereNow Error:", e);
             }
         };
 
@@ -74,7 +75,7 @@ const usePresence = (user, currentChannelId) => {
 
         // 3. Set Local State
         const updateState = () => {
-           console.log("📡 Setting My State:", user.name);
+           logger.log("📡 Setting My State:", user.name);
            pubnub.setState({
                 channels: [CHANNEL],
                 state: {
@@ -82,7 +83,7 @@ const usePresence = (user, currentChannelId) => {
                     avatar: user.avatar,
                     id: user.id
                 }
-            }).catch(e => console.error("SetState Error:", e));
+            }).catch(e => logger.error("SetState Error:", e));
         };
         
         updateState();
@@ -93,7 +94,7 @@ const usePresence = (user, currentChannelId) => {
                 const { action, uuid, state } = event;
                 if (event.channel !== CHANNEL) return;
                 
-                console.log(`🔔 Presence Event: ${action} from ${uuid}`, state);
+                logger.log(`🔔 Presence Event: ${action} from ${uuid}`, state);
 
                 setOnlineUsers(prev => {
                     const next = { ...prev };
@@ -107,7 +108,7 @@ const usePresence = (user, currentChannelId) => {
                     } else if (action === 'leave' || action === 'timeout') {
                         delete next[uuid];
                     }
-                    console.log("🔄 Updated Online List:", Object.keys(next));
+                    logger.log("🔄 Updated Online List:", Object.keys(next));
                     return next;
                 });
             },
@@ -136,15 +137,15 @@ const usePresence = (user, currentChannelId) => {
             status: (statusEvent) => {
                 // Monitor Connection Status specifically for this channel subscription
                 if (statusEvent.category === "PNConnectedCategory") {
-                    console.log(`✅ PubNub Connected to ${CHANNEL}!`);
+                    logger.log(`✅ PubNub Connected to ${CHANNEL}!`);
                     // Retry setState once connected to be sure
                     updateState();
                 } else if (statusEvent.category === "PNNetworkDownCategory") {
-                    console.log("❌ PubNub Network Down");
+                    logger.log("❌ PubNub Network Down");
                 } else if (statusEvent.category === "PNAccessDeniedCategory") {
-                    console.error("🚫 PubNub Access Denied (Check Keys/PAM):", CHANNEL);
+                    logger.error("🚫 PubNub Access Denied (Check Keys/PAM):", CHANNEL);
                 } else {
-                    console.log("ℹ️ PubNub Status:", statusEvent.category);
+                    logger.log("ℹ️ PubNub Status:", statusEvent.category);
                 }
             }
         };
@@ -172,13 +173,13 @@ const usePresence = (user, currentChannelId) => {
             t: isTyping 
         };
         
-        // console.log(`📤 Sending typing to ${CHANNEL}`, message);
+        // logger.log(`📤 Sending typing to ${CHANNEL}`, message);
 
         pubnub.signal({
             channel: CHANNEL,
             message: message
         }).catch(err => {
-            console.error("Signal failed:", err);
+            logger.error("Signal failed:", err);
         });
     };
 

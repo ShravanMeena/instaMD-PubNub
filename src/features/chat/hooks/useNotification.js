@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
+import logger from '@/utils/logger';
 
 const useNotification = () => {
     const [permission, setPermission] = useState(Notification.permission);
 
     const requestPermission = useCallback(async () => {
         if (!('Notification' in window)) {
-            console.warn('This browser does not support desktop notification');
+            logger.warn('This browser does not support desktop notification');
             return;
         }
         
@@ -26,7 +27,7 @@ const useNotification = () => {
                     n.close();
                 };
             } catch (e) {
-                console.error("Notification creation failed:", e);
+                logger.error("Notification creation failed:", e);
             }
         }
     }, []);
