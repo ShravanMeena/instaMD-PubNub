@@ -5,12 +5,22 @@ const ChatContext = createContext();
 
 import { useAuth } from '@/context/AuthContext';
 
+import usePresence from '../hooks/usePresence';
+
 export const ChatProvider = ({ children }) => {
   const pubnub = usePubNub();
   const { user } = useAuth(); // Consume user from AuthContext
 
   const [isTyping, setIsTyping] = useState(false);
+  const [currentChannel, setCurrentChannel] = useState(null);
   
+  // GLOBAL PRESENCE FIX:
+  // Instead of relying on the 'current channel', we subscribe to a dedicated
+  // "Global Presence" channel. This ensures that checks like "Is User X Online?" 
+  // work regardless of which room the user is currently looking at.
+  const GLOBAL_PRESENCE_CHANNEL = 'global-presence-v1';
+  const { onlineUsers, typingUsers, sendTypingSignal } = usePresence(user, GLOBAL_PRESENCE_CHANNEL);
+
   // Modal State
   const [modal, setModal] = useState({
     isOpen: false,
@@ -40,8 +50,6 @@ export const ChatProvider = ({ children }) => {
     }
   }, [user, pubnub]);
 
-  const [currentChannel, setCurrentChannel] = useState(null);
-
   const value = useMemo(() => ({
     pubnub,
     user,
@@ -52,8 +60,12 @@ export const ChatProvider = ({ children }) => {
     setIsTyping,
     modal,
     showError,
-    closeModal
-  }), [pubnub, user, currentChannel, isTyping, modal, showError, closeModal]);
+    closeModal,
+    // Presence Data Exposed Globally
+    onlineUsers,
+    typingUsers,
+    sendTypingSignal
+  }), [pubnub, user, currentChannel, isTyping, modal, showError, closeModal, onlineUsers, typingUsers, sendTypingSignal]);
 
   return (
     <ChatContext.Provider value={value}>

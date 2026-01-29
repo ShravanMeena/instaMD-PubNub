@@ -119,17 +119,18 @@ const useMessages = (user) => {
 
                 setMessages(prev => {
                     // OPTIMISTIC DEDUPING:
-                    // If we have a pending message with the same clientMessageId, replace it.
                     if (clientMessageId) {
                         const existingIdx = prev.findIndex(m => m.clientMessageId === clientMessageId);
                         if (existingIdx !== -1) {
                             const updated = [...prev];
                             updated[existingIdx] = newMessage; // Swap pending with confirmed
-                            return updated;
+                            // Sort needed after update? Probably not if order was preserved, but safest to sort.
+                            return updated.sort((a, b) => a.timetoken - b.timetoken);
                         }
                     }
-                    // Otherwise append
-                    return [...prev, newMessage];
+                    // Append and Sort
+                    const nextMessages = [...prev, newMessage];
+                    return nextMessages.sort((a, b) => a.timetoken - b.timetoken);
                 });
             },
             file: (event) => {
@@ -142,7 +143,7 @@ const useMessages = (user) => {
                     status: 'sent'
                 };
 
-                setMessages(prev => [...prev, newMessage]);
+                setMessages(prev => [...prev, newMessage].sort((a, b) => a.timetoken - b.timetoken));
             },
         };
 
