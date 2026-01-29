@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  # Staging / Production Service
+  app:
+    build:
+      context: .
+      args:
+        - VITE_PUBNUB_PUBLISH_KEY=${VITE_PUBNUB_PUBLISH_KEY}
+        - VITE_PUBNUB_SUBSCRIBE_KEY=${VITE_PUBNUB_SUBSCRIBE_KEY}
+    ports:
+      - "8080:80"
+    restart: always
+    profiles: ["prod"]
+
+  # Development Service (Hot Reload)
+  dev:
+    image: node:20-alpine
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - /app/node_modules
+    ports:
+      - "5173:5173"
+    command: npm run dev
+    environment:
+      - VITE_PUBNUB_PUBLISH_KEY=${VITE_PUBNUB_PUBLISH_KEY}
+      - VITE_PUBNUB_SUBSCRIBE_KEY=${VITE_PUBNUB_SUBSCRIBE_KEY}
+    profiles: ["dev"]
