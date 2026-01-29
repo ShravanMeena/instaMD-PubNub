@@ -1,19 +1,19 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import Sidebar from './Sidebar';
+import Sidebar from '../Sidebar';
 import { MemoryRouter } from 'react-router-dom';
 
 // Mocks
-vi.mock('../components/ChannelList', () => ({
+vi.mock('../ChannelList', () => ({
     default: () => <div data-testid="channel-list">Channel List</div>
 }));
 
-vi.mock('../components/DirectMessageList', () => ({
+vi.mock('../DirectMessageList', () => ({
     default: () => <div data-testid="dm-list">DM List</div>
 }));
 
 // Mock NewDmModal to avoid portal issues
-vi.mock('./NewDmModal', () => ({
+vi.mock('../NewDmModal', () => ({
     default: ({ isOpen }) => isOpen ? <div data-testid="new-dm-modal">New DM Modal</div> : null
 }));
 

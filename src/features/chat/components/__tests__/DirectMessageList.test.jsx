@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import DirectMessageList from './DirectMessageList';
+import DirectMessageList from '../DirectMessageList';
 import { MemoryRouter } from 'react-router-dom';
 
 // Mocks
-vi.mock('../context/ChatContext', () => ({
+vi.mock('../../context/ChatContext', () => ({
     useChat: () => ({
         currentChannel: { id: 'c1' }
     })

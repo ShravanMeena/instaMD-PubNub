@@ -1,10 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import ChannelList from './ChannelList';
+import ChannelList from '../ChannelList';
 import { MemoryRouter } from 'react-router-dom';
 
 // Global Mocks
-vi.mock('../context/ChatContext', () => ({
+vi.mock('../../context/ChatContext', () => ({
     useChat: () => ({
         currentChannel: { id: 'c1' },
         user: { id: 'u1' },

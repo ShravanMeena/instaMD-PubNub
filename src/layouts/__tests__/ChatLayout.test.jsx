@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import ChatLayout from './ChatLayout';
+import ChatLayout from '../ChatLayout';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 // Mocks for Hooks

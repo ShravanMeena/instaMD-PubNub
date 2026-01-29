@@ -1,22 +1,22 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import MessageList from './MessageList';
+import MessageList from '../MessageList';
 
 // Mocks
-vi.mock('../hooks/usePubNub', () => ({
+vi.mock('../../hooks/usePubNub', () => ({
     default: () => ({
         getFileUrl: vi.fn(),
     })
 }));
 
-vi.mock('../hooks/useChannels', () => ({
+vi.mock('../../hooks/useChannels', () => ({
     default: () => ({
         getDmChannelId: vi.fn(),
         joinedChannels: [],
     })
 }));
 
-vi.mock('../context/ChatContext', () => ({
+vi.mock('../../context/ChatContext', () => ({
     useChat: () => ({
         setCurrentChannel: vi.fn(),
     })
@@ -27,7 +27,7 @@ vi.mock('react-router-dom', () => ({
 }));
 
 // Mock child components to avoid deep rendering issues
-vi.mock('./UserProfileDialog', () => ({
+vi.mock('../UserProfileDialog', () => ({
     default: () => <div data-testid="user-profile-dialog" />
 }));
 

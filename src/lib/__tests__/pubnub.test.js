@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import pubnub from './pubnub';
+import pubnub from '../pubnub';
 
 describe('PubNub Configuration', () => {
     it('should be authorized with a UUID', () => {

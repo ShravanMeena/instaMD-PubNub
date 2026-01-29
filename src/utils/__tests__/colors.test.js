@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getRandomColor, getAvatarUrl } from './colors';
+import { getRandomColor, getAvatarUrl } from '../colors';
 
 describe('colors utils', () => {
     it('should return a valid random color', () => {
