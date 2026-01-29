@@ -17,6 +17,8 @@ import UserProfileDialog from './UserProfileDialog';
 
 const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
     const pubnub = usePubNub();
+    const isSending = message.status === 'sending';
+    const isError = message.status === 'error';
     
     // Helper to format time
     const formatTime = (isoString) => {
@@ -61,7 +63,8 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
         <div 
             className={cn(
                 "flex gap-3 max-w-[80%] animate-in fade-in slide-in-from-bottom-2 duration-300",
-                isOwn ? "self-end flex-row-reverse" : "self-start"
+                isOwn ? "self-end flex-row-reverse" : "self-start",
+                isSending && "opacity-70"
             )}
         >
             {!isOwn && (
@@ -110,18 +113,25 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
                 {hasText && (
                     <div 
                         className={cn(
-                            "p-3 rounded-2xl text-sm leading-relaxed shadow-sm",
+                            "p-3 rounded-2xl text-sm leading-relaxed shadow-sm relative",
                             isOwn 
                                 ? "bg-primary text-primary-foreground rounded-br-none" 
-                                : "bg-muted text-foreground border border-border rounded-bl-none"
+                                : "bg-muted text-foreground border border-border rounded-bl-none",
+                             isError && "bg-destructive text-destructive-foreground"
                         )}
                     >
                         {payload.text}
+                        {isError && (
+                            <span className="absolute -bottom-5 right-0 text-[10px] text-destructive font-bold flex items-center gap-1">
+                                Failed to send
+                            </span>
+                        )}
                     </div>
                 )}
                 
-                <span className="text-[10px] text-muted-foreground opacity-70 mt-1 px-1">
-                    {formatTime(payload.createdAt || message.timetoken / 10000)} {/* Fallback for time */}
+                <span className="text-[10px] text-muted-foreground opacity-70 mt-1 px-1 flex items-center gap-1">
+                    {formatTime(payload.createdAt || message.timetoken / 10000)}
+                    {isSending && <span className="italic">(Sending...)</span>}
                 </span>
             </div>
         </div>

@@ -72,7 +72,8 @@ const useMessages = (user) => {
                            payload: payload,
                            file: file, 
                            timetoken: msg.timetoken,
-                           publisher: msg.uuid || msg.producer
+                           publisher: msg.uuid || msg.producer,
+                           status: 'sent' // Confirmed from history
                        };
                    });
                    
@@ -101,20 +102,35 @@ const useMessages = (user) => {
         // 2. Subscribe & Listen
         const listener = {
             message: (event) => {
-                // ... (listener code unchanged logic, but keeping consistant)
                 console.log("Raw PubNub Message Event:", event);
                 
                 const fileData = event.file || event.message?.file;
-                
+                const clientMessageId = event.message?.clientMessageId;
+
                 const newMessage = {
                     id: event.timetoken,
                     payload: event.message,
                     file: fileData, 
                     timetoken: event.timetoken,
-                    publisher: event.publisher
+                    publisher: event.publisher,
+                    status: 'sent',
+                    clientMessageId: clientMessageId, // Store for matching
                 };
 
-                setMessages(prev => [...prev, newMessage]);
+                setMessages(prev => {
+                    // OPTIMISTIC DEDUPING:
+                    // If we have a pending message with the same clientMessageId, replace it.
+                    if (clientMessageId) {
+                        const existingIdx = prev.findIndex(m => m.clientMessageId === clientMessageId);
+                        if (existingIdx !== -1) {
+                            const updated = [...prev];
+                            updated[existingIdx] = newMessage; // Swap pending with confirmed
+                            return updated;
+                        }
+                    }
+                    // Otherwise append
+                    return [...prev, newMessage];
+                });
             },
             file: (event) => {
                 const newMessage = {
@@ -122,7 +138,8 @@ const useMessages = (user) => {
                     payload: event.message, 
                     file: event.file,       
                     timetoken: event.timetoken,
-                    publisher: event.publisher
+                    publisher: event.publisher,
+                    status: 'sent'
                 };
 
                 setMessages(prev => [...prev, newMessage]);
@@ -184,7 +201,8 @@ const useMessages = (user) => {
                            payload: payload,
                            file: file, 
                            timetoken: msg.timetoken,
-                           publisher: msg.uuid || msg.producer
+                           publisher: msg.uuid || msg.producer,
+                           status: 'sent'
                        };
                 });
                 
@@ -207,6 +225,9 @@ const useMessages = (user) => {
     const sendMessage = useCallback(async (text) => {
         if (!text.trim() || !user) return;
 
+        const clientMessageId = crypto.randomUUID(); // Native browser UUID
+        const now = new Date();
+
         const messagePayload = {
             text,
             sender: {
@@ -216,18 +237,36 @@ const useMessages = (user) => {
                 color: user.color
             },
             type: 'text',
-            createdAt: new Date().toISOString()
+            createdAt: now.toISOString(),
+            clientMessageId: clientMessageId // Send this to server
         };
+
+        // 1. Optimistic Update
+        const optimisticMessage = {
+            id: clientMessageId, // Temporary ID
+            clientMessageId: clientMessageId,
+            payload: messagePayload,
+            publisher: user.id,
+            timetoken: now.getTime() * 10000, // Fake timetoken
+            status: 'sending' // Flag for UI
+        };
+        
+        setMessages(prev => [...prev, optimisticMessage]);
 
         try {
             await pubnub.publish({
                 channel: CHANNEL,
                 message: messagePayload,
             });
+            // 2. Success - Listener will receive message and swap it based on clientMessageId
         } catch (error) {
              console.error("Failed to publish:", error);
-             // Error handling logic
              showError(`Failed: ${error.message}`);
+             
+             // 3. Rollback or Error State (Optional: remove optimistic message)
+             setMessages(prev => prev.map(m => 
+                m.clientMessageId === clientMessageId ? { ...m, status: 'error' } : m
+             ));
         }
     }, [user, pubnub, showError, CHANNEL]);
 
