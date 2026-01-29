@@ -178,6 +178,7 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick, onAddR
                     </div>
                 )}
                 
+                
                 {/* Reactions Display */}
                 {message.actions && (
                     <ReactionBar 
@@ -188,16 +189,30 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick, onAddR
                     />
                 )}
                 
-                <span className="text-[10px] text-muted-foreground opacity-70 mt-1 px-1 flex items-center gap-1">
-                    {formatTime(payload.createdAt || message.timetoken / 10000)}
-                    {isSending && <span className="italic">(Sending...)</span>}
-                </span>
+                <div className="flex items-center justify-between mt-1 px-1">
+                    <span className="text-[10px] text-muted-foreground opacity-70 flex items-center gap-1">
+                        {formatTime(payload.createdAt || message.timetoken / 10000)}
+                        {isSending && <span className="italic">(Sending...)</span>}
+                    </span>
+                    
+                    {/* Read Receipts */}
+                    {message.readBy && message.readBy.length > 0 && (
+                        <div className="flex items-center -space-x-1.5 ml-2">
+                            {message.readBy.map(u => (
+                                <Avatar key={u.userId} className="h-3.5 w-3.5 ring-1 ring-background">
+                                    <AvatarImage src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${u.userId}`} />
+                                    <AvatarFallback className="text-[6px]">{u.userId[0]}</AvatarFallback>
+                                </Avatar>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         </div>
     );
 });
 
-const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoadingMore, onAddReaction, onRemoveReaction }) => {
+const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoadingMore, onAddReaction, onRemoveReaction, readReceipts, markAllAsRead }) => {
     const [selectedUser, setSelectedUser] = useState(null);
     const { getDmChannelId, joinedChannels } = useChannels();
     const navigate = useNavigate();
@@ -220,8 +235,18 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
         }
     };
 
+    // Trigger Mark Read when messages load or user is at bottom
+    useEffect(() => {
+        if (messages.length > 0 && atBottom) {
+             const timer = setTimeout(() => {
+                 markAllAsRead?.();
+             }, 1000); // 1s debounce
+             return () => clearTimeout(timer);
+        }
+    }, [messages, atBottom, markAllAsRead]);
+
     return (
-        <div className="h-full flex-1 flex flex-col relative">
+        <div className="h-full flex-1 flex flex-col relative w-full">
             {messages.length === 0 && !isLoadingMore ? (
                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                     <div className="bg-muted/50 p-6 rounded-full mb-4">
@@ -261,10 +286,19 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
                     
                     itemContent={(index, msg) => {
                          const isOwn = msg.publisher === currentUser?.id || msg.payload?.sender?.id === currentUser?.id;
+                         
+                         // Calculate who has read this message (only show on the exact message they read last)
+                         const readBy = Object.entries(readReceipts || {})
+                            .filter(([uid, token]) => uid !== currentUser?.id && token === msg.timetoken)
+                            .map(([uid]) => ({ userId: uid }));
+
+                         // Also attach readBy to the message object for the Bubble
+                         const msgWithReceipts = { ...msg, readBy };
+
                          return (
-                            <div className="px-4">
+                            <div className="px-4 w-full">
                                 <MessageBubble 
-                                    message={msg} 
+                                    message={msgWithReceipts} 
                                     isOwn={isOwn}
                                     channel={channel}
                                     onUserClick={setSelectedUser}

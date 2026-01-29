@@ -27,9 +27,10 @@ const usePresence = (user, currentChannelId) => {
     useEffect(() => {
         if (!user || !currentChannelId) return;
 
+        if (!user || !currentChannelId) return;
+
         // Ensure we are using the correct UUID for self-identification
         const currentUUID = pubnub.getUUID();
-        console.log(`🔌 Presence: Subscribing to ${CHANNEL} as ${currentUUID}`);
 
         // 1. Subscribe with Presence
         pubnub.subscribe({
@@ -48,7 +49,6 @@ const usePresence = (user, currentChannelId) => {
                 
                 if (response.channels[CHANNEL]) {
                     const occupants = response.channels[CHANNEL].occupants;
-                    console.log("👥 HereNow Occupants:", occupants); // DEBUG
                     const usersMap = {};
                     occupants.forEach(occ => {
                          // Fallback structure if state is missing
@@ -59,13 +59,10 @@ const usePresence = (user, currentChannelId) => {
                              isOnline: true
                          };
                     });
-                    console.log("✅ Parsed Online Users:", usersMap); // DEBUG
                     setOnlineUsers(usersMap);
-                } else {
-                    console.log("⚠️ No occupants found in HereNow for", CHANNEL);
                 }
             } catch (e) {
-                console.error("HereNow failed:", e);
+                // Silent catch
             }
         };
 
@@ -82,9 +79,7 @@ const usePresence = (user, currentChannelId) => {
                     avatar: user.avatar,
                     id: user.id
                 }
-            }).catch(err => {
-                console.error("SetState failed retrying...", err);
-            });
+            }).catch(() => {});
         };
         
         updateState();
@@ -92,7 +87,6 @@ const usePresence = (user, currentChannelId) => {
         // 4. Listeners
         const listener = {
             presence: (event) => {
-                console.log(`👀 Presence Event on ${event.channel}:`, event.action, event.uuid);
                 const { action, uuid, state } = event;
                 if (event.channel !== CHANNEL) return;
 
@@ -115,15 +109,15 @@ const usePresence = (user, currentChannelId) => {
                 if (event.channel === CHANNEL) {
                     const msg = event.message;
                     const userId = msg.userId || msg.uid || msg.id;
+                    const userName = msg.userName || msg.name || 'Anonymous'; // Support name
                     const isTyping = msg.isTyping !== undefined ? msg.isTyping : (msg.t === true || msg.t === 1 || msg.it === 1);
                     const isTypingSignal = (msg.type === 'typing' || msg.tp === 't' || msg.t !== undefined);
 
                     if (isTypingSignal && userId) {
                         if (userId === user.id) return; 
-                        console.log(`✍️ User ${userId} is typing: ${isTyping}`);
                         setTypingUsers(prev => {
                             if (isTyping) {
-                                return { ...prev, [userId]: true };
+                                return { ...prev, [userId]: userName }; // Store Name instead of true
                             } else {
                                 const next = { ...prev };
                                 delete next[userId];
@@ -138,7 +132,6 @@ const usePresence = (user, currentChannelId) => {
         pubnub.addListener(listener);
 
         return () => {
-            console.log(`🔌 Presence: Unsubscribing from ${CHANNEL}`);
             clearInterval(intervalId);
             pubnub.removeListener(listener);
             pubnub.unsubscribe({ channels: [CHANNEL] });
@@ -150,30 +143,28 @@ const usePresence = (user, currentChannelId) => {
     // Send typing signal
     const sendTypingSignal = (isTyping) => {
         if (!user || !currentChannelId) {
-             // console.warn("⚠️ Cannot send typing signal: Missing user or channelId");
              return;
         }
         
-        // Debug: sending simpler payload 
         const message = { 
             id: user.id, 
-            t: isTyping // boolean
+            name: user.name, // Send Name!
+            t: isTyping 
         };
         
-        console.log(`📤 Sending typing signal to ${CHANNEL}`, message);
+        // console.log(`📤 Sending typing to ${CHANNEL}`, message);
 
         pubnub.signal({
             channel: CHANNEL,
             message: message
         }).catch(err => {
             console.error("Signal failed:", err);
-            console.error("Payload was:", message);
         });
     };
 
     return { 
         onlineUsers: Object.values(onlineUsers), 
-        typingUsers: Object.keys(typingUsers), 
+        typingUsers: Object.values(typingUsers), // Return array of Names
         sendTypingSignal 
     };
 };

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from 'react-router-dom';
 
 const DirectMessageList = ({ onOpenNewDm, joinedChannels, deleteChannel }) => {
-    const { currentChannel } = useChat();
+    const { currentChannel, onlineUsers } = useChat(); // Get onlineUsers here
     const navigate = useNavigate();
     const [confirmOpen, setConfirmOpen] = useState(false);
     const [channelToDelete, setChannelToDelete] = useState(null);
@@ -56,10 +56,6 @@ const DirectMessageList = ({ onOpenNewDm, joinedChannels, deleteChannel }) => {
                 
                 {dmChannels.map(channel => {
                     // Check presence
-                    // Note: onlineUsers is an array of objects { id, ... }
-                    // channel.otherUserId is the ID of the person we are chatting with
-                    // We need to check if that ID exists in onlineUsers array
-                    const { onlineUsers } = useChat();
                     const isOnline = onlineUsers.some(u => u.id === channel.otherUserId);
 
                     return (

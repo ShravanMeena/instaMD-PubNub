@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import usePubNub from './usePubNub';
 import { useChat } from '../context/ChatContext';
+import useNotification from './useNotification';
 
 /**
  * Hook to manage message fetching, subscription, and publishing for a channel.
@@ -22,6 +23,7 @@ const parseActions = (msg) => {
 const useMessages = (user) => {
     const pubnub = usePubNub();
     const { showError, currentChannel } = useChat();
+    const { permission, requestPermission, showNotification } = useNotification();
     const [startTimetoken, setStartTimetoken] = useState(null);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -94,6 +96,18 @@ const useMessages = (user) => {
 
         const listener = {
             message: (event) => {
+                const msg = event.message;
+
+                // Notification Logic: If document is hidden (user tabbed away), show notification
+                if (document.hidden && event.publisher !== user.id) {
+                     const senderName = msg.sender?.name || "Someone";
+                     const bodyText = msg.text || "Sent a file";
+                     showNotification(`New message from ${senderName}`, {
+                        body: bodyText,
+                        icon: msg.sender?.avatar || '/vite.svg'
+                     });
+                }
+
                 const fileData = event.file || event.message?.file;
                 const clientMessageId = event.message?.clientMessageId;
 
@@ -117,21 +131,12 @@ const useMessages = (user) => {
                             return updated.sort((a, b) => a.timetoken - b.timetoken);
                         }
                     }
-                    const nextMessages = [...prev, newMessage];
-                    return nextMessages.sort((a, b) => a.timetoken - b.timetoken);
+                    
+                    // Deduping
+                    if (prev.find(m => m.timetoken === event.timetoken)) return prev;
+                    
+                    return [...prev, newMessage].sort((a, b) => a.timetoken - b.timetoken);
                 });
-            },
-            file: (event) => {
-                const newMessage = {
-                    id: event.timetoken,
-                    payload: event.message, 
-                    file: event.file,       
-                    timetoken: event.timetoken,
-                    publisher: event.publisher,
-                    status: 'sent',
-                    actions: {}
-                };
-                setMessages(prev => [...prev, newMessage].sort((a, b) => a.timetoken - b.timetoken));
             },
             // Handle Reactions
             messageAction: (event) => {
@@ -162,6 +167,17 @@ const useMessages = (user) => {
                         return msg;
                     });
                 });
+            },
+            
+            // Handle Read Receipts (Signals)
+            signal: (event) => {
+                if (event.channel === CHANNEL && event.message.type === 'read_receipt') {
+                    const { userId, timetoken } = event.message;
+                    setReadReceipts(prev => ({
+                        ...prev,
+                        [userId]: timetoken
+                    }));
+                }
             }
         };
 
@@ -172,11 +188,16 @@ const useMessages = (user) => {
             withPresence: true 
         });
 
+        // Request permission if not granted yet
+        if (permission === 'default') {
+             requestPermission();
+        }
+
         return () => {
-            pubnub.unsubscribe({ channels: [CHANNEL] });
             pubnub.removeListener(listener);
+            pubnub.unsubscribe({ channels: [CHANNEL] });
         };
-    }, [user, pubnub, CHANNEL]);
+    }, [pubnub, CHANNEL, permission, requestPermission, showNotification, user.id]);
 
     const fetchMore = useCallback(async () => {
         if (!startTimetoken || !hasMore || isLoadingMore) return;
