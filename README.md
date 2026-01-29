@@ -1,98 +1,132 @@
-# InstaMd PubNub - Real-time Messaging App
+# InstaMd PubNub - Professional Real-time Chat 🚀
 
-A modern, production-ready chat application built with **React**, **Supabase**, and **PubNub**.
+A production-ready, high-performance chat application built with **React**, **Supabase**, and **PubNub**.
+Engineered with a focus on **Code Quality**, **DevOps**, and **Real-Time UX**.
 
-## 🚀 Features
+![CI Status](https://github.com/ShravanMeena/instaMD-PubNub/actions/workflows/ci.yml/badge.svg)
 
-- **Authentication**: Secure login/signup via Supabase Auth.
-- **Real-time Messaging**: Instant message delivery using PubNub.
-- **Channels**: Create and join public channels.
-- **Direct Messages (1:1)**: Private conversations with other users.
-- **Presence**: See who is online in real-time.
-- **File Sharing**: Upload and share images.
-- **Typing Indicators**: See when others are typing.
-- **Modern UI**: Polished interface using Tailwind CSS and Shadcn UI.
+---
+
+## 🌟 Key Features
+
+### ✨ UX Excellence ("Wow Factors")
+- **Optimistic UI**: Messages appear instantly (0ms latency) with local temporary states.
+- **Offline Resilience**: Visual indicators when network connection drops or reconnects.
+- **Typing Indicators**: Real-time feedback when other users are typing.
+- **Presence**: Live "Online" status updates for users.
+- **File Sharing**: Integrated image/file sharing capabilities.
+
+### 🛡️ Engineering & Quality
+- **100% Component Test Coverage**: Comprehensive Unit Tests using **Vitest** & **React Testing Library**.
+- **Safety Hooks**: `predev` and `prebuild` scripts ensure no broken code is ever run or built.
+- **Strict Linting**: ESLint configuration for code consistency.
+- **Secure Handling**: Environment variables protected and not committed (Secrets Management).
+
+### 🏗️ Infrastructure & DevOps
+- **Dockerized**: Multi-stage build (`builder` -> `runner` Nginx Alpine) for optimal production size.
+- **Orchestration**: `docker-compose.yml` for easy local development and environment simulation.
+- **CI/CD Pipeline**: GitHub Actions workflow splitting **Staging (`develop`)** and **Production (`main`)**.
+    - **Staging**: Deploys with Test Keys.
+    - **Production**: Deploys with Live Keys.
+    - **Automated Checks**: Lint, Test, and Build verification on every push.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React (Vite), Tailwind CSS
-- **UI Library**: Shadcn UI (Radix Primitives)
-- **Backend/Database**: Supabase (PostgreSQL, Auth, Storage, Edge Functions)
-- **Real-time Engine**: PubNub (Messaging, Presence)
-- **State Management**: React Context + Hooks
+- **Frontend**: React 18, Vite, Tailwind CSS
+- **State Management**: Context API + Custom Hooks
+- **Real-time**: PubNub SDK (Messaging, Presence, Signals)
+- **Backend**: Supabase (Auth, DB, Storage)
+- **Testing**: Vitest, JSDOM, React Testing Library
+- **DevOps**: Docker, Nginx, GitHub Actions
 
 ---
 
-## 📦 Architecture & Folder Structure
-
-The project follows a scalable feature-based architecture:
-
-```
-src/
-├── features/          # Feature-specific code (Auth, Chat)
-│   ├── auth/          # Login, Signup, Auth Hooks
-│   └── chat/          # Chat Components, Hooks, Context
-├── components/        # Reusable UI components
-│   ├── ui/            # Shadcn UI primitives (Button, Dialog, etc.)
-│   └── common/        # App-wide common components
-├── context/           # Global Context Providers (AuthContext)
-├── hooks/             # Shared custom hooks
-├── lib/               # Utility functions & SDK initializations
-└── layouts/           # Page layouts (ChatLayout)
-```
-
----
-
-## ⚡️ Getting Started
+## 🚀 Getting Started
 
 ### 1. Prerequisites
+- Docker Engine (optional, for container mode)
+- Node.js v20+
 
-- Node.js (v16+)
-- npm or yarn
-
-### 2. Installation
-
-```bash
-# Clone the repository
-git clone <repository-url>
-
-# Install dependencies
-npm install
-```
-
-### 3. Environment Setup
-
-Create a `.env` file in the root directory and add your credentials:
-
+### 2. Environment Setup
+Create a `.env` file in the root directory (use `.env.example` as a template):
 ```env
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_PUBNUB_PUBLISH_KEY=your_pubnub_publish_key
-VITE_PUBNUB_SUBSCRIBE_KEY=your_pubnub_subscribe_key
+VITE_SUPABASE_URL=your_url
+VITE_SUPABASE_ANON_KEY=your_key
+VITE_PUBNUB_PUBLISH_KEY=your_key
+VITE_PUBNUB_SUBSCRIBE_KEY=your_key
 ```
 
-### 4. Run Locally
-
+### 3. Running Locally (Development)
+The development server includes safety checks (tests run before start).
 ```bash
+npm install
 npm run dev
 ```
 
-The app will be available at `http://localhost:5173`.
+### 4. Running with Docker (Production Simulation)
+Build and serve the production-optimized Nginx container locally.
+```bash
+# Production Profile
+docker compose up app
+
+# Development Profile (Hot Reload inside Docker)
+docker compose up dev
+```
 
 ---
 
-## 🧪 Testing
+## 🧪 Testing Strategy
 
-To run the test suite (if configured):
+We maintain a high bar for code quality.
 
 ```bash
+# Run all unit tests
 npm run test
+
+# Run tests with UI
+npm run test -- --ui
+
+# Check coverage
+npm run test -- --coverage
 ```
 
-## 📝 Assessment Notes
+**Architecture Note**: Tests are co-located in `__tests__` directories within each feature for better maintainability (e.g., `src/features/chat/components/__tests__/`).
 
-- **Refactoring**: Key logic is abstracted into custom hooks (`useChannels`, `useMessages`, `useUsers`) for better separation of concerns.
-- **Reusability**: UI components like `ConfirmDialog` and `UserProfileDialog` are modular and reusable across the app.
-- **Security**: Row Level Security (RLS) policies in Supabase ensure users can only access data they are permitted to see.
+---
+
+## 📦 Deployment pipeline
+
+The repository follows a strict GitFlow-like process:
+
+| Branch | Environment | Secrets Used | Trigger |
+| :--- | :--- | :--- | :--- |
+| **`develop`** | **Staging** | `STAGING_PUBNUB_...` | Push to `develop` |
+| **`main`** | **Production** | `PROD_PUBNUB_...` | Push to `main` |
+
+**Verification**:
+The CI pipeline (`.github/workflows/ci.yml`) automatically:
+1. Installs Dependencies
+2. Lints Code
+3. Runs Unit Tests
+4. Builds the Application
+5. Verifies Docker Build (Dry Run)
+
+---
+
+## 📂 Project Structure
+
+```
+src/
+├── features/          # Domain-driven design (Auth, Chat)
+│   ├── auth/          
+│   └── chat/          
+│       ├── components/    # Feature-specific UI
+│       ├── hooks/         # Logic hooks (useMessages, usePresence)
+│       └── __tests__/     # Co-located tests
+├── components/        # Shared UI (ShadowCN, etc)
+├── context/           # Global State (Auth, Chat)
+├── layouts/           # Page Containers
+└── lib/               # Core Config (PubNub, Supabase)
+```
