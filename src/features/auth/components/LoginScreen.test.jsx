@@ -1,11 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import LoginScreen from './LoginScreen';
-import { ChatProvider } from '../../context/ChatContext';
+
 
 // Mock the context
-vi.mock('../../context/ChatContext', async () => {
-    const actual = await vi.importActual('../../context/ChatContext');
+// Mock the context
+vi.mock('../../chat/context/ChatContext', async () => {
+    const actual = await vi.importActual('../../chat/context/ChatContext');
     return {
         ...actual,
         useChat: () => ({
@@ -18,14 +19,19 @@ vi.mock('../../context/ChatContext', async () => {
 describe('LoginScreen', () => {
     it('renders correctly', () => {
         render(<LoginScreen />);
-        expect(screen.getByText(/NeonChat/i)).toBeInTheDocument();
-        expect(screen.getByPlaceholderText(/Pick a username/i)).toBeInTheDocument();
+        expect(screen.getByText(/Enter your details to join/i)).toBeInTheDocument();
+        expect(screen.getByPlaceholderText(/user@example.com/i)).toBeInTheDocument();
     });
 
-    it('allows typing a username', () => {
+    it('allows typing email and password', () => {
         render(<LoginScreen />);
-        const input = screen.getByPlaceholderText(/Pick a username/i);
-        fireEvent.change(input, { target: { value: 'TestUser' } });
-        expect(input.value).toBe('TestUser');
+        
+        const emailInput = screen.getByPlaceholderText(/user@example.com/i);
+        fireEvent.change(emailInput, { target: { value: 'test@test.com' } });
+        expect(emailInput.value).toBe('test@test.com');
+
+        const passwordInput = screen.getByPlaceholderText(/••••••••/i);
+        fireEvent.change(passwordInput, { target: { value: 'password123' } });
+        expect(passwordInput.value).toBe('password123');
     });
 });
