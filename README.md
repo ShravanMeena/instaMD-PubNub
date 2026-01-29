@@ -19,6 +19,8 @@ Engineered with a focus on **Code Quality**, **DevOps**, and **Real-Time UX**.
 - **Optimistic UI**: Messages appear instantly (0ms latency).
 - **Real-time Presence**: See who is online or typing with live green-dot indicators.
 - **Reactions & Receipts**: Emoji reactions and "Seen" status updates.
+- **Immersive Sounds**: Subtle "Pop" for messages and "Ping" for join events.
+- **System Events**: "User joined/left" notifications in the chat stream.
 - **File Sharing**: Simple drag-and-drop image sharing.
 
 ### 🛡️ Engineering Quality
