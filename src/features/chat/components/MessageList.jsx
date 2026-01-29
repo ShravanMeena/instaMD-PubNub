@@ -212,7 +212,17 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick, onAddR
     );
 });
 
-const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoadingMore, onAddReaction, onRemoveReaction, readReceipts, markAllAsRead }) => {
+const TypingBubble = () => (
+    <div className="flex items-center gap-1 p-2 ml-4">
+        <span className="flex gap-1 h-2">
+            <span className="animate-bounce h-1.5 w-1.5 bg-gray-400 rounded-full" style={{ animationDelay: '0ms' }}></span>
+            <span className="animate-bounce h-1.5 w-1.5 bg-gray-400 rounded-full" style={{ animationDelay: '150ms' }}></span>
+            <span className="animate-bounce h-1.5 w-1.5 bg-gray-400 rounded-full" style={{ animationDelay: '300ms' }}></span>
+        </span>
+    </div>
+);
+
+const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoadingMore, onAddReaction, onRemoveReaction, readReceipts, markAllAsRead, typingUsers }) => {
     const [selectedUser, setSelectedUser] = useState(null);
     const { getDmChannelId, joinedChannels } = useChannels();
     const navigate = useNavigate();
@@ -250,7 +260,7 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
             {messages.length === 0 && !isLoadingMore ? (
                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                     <div className="bg-muted/50 p-6 rounded-full mb-4">
-                        <span className="text-4xl">👋</span>
+                         <span className="text-4xl">👋</span>
                     </div>
                     <p className="font-medium">No messages yet.</p>
                     <p className="text-sm opacity-70">Start the conversation!</p>
@@ -281,10 +291,33 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
                                     <span className="text-[10px] text-muted-foreground opacity-50">Start of history</span>
                                 )}
                             </div>
+                        ),
+                        Footer: () => (
+                            <div className="pb-2">
+                                {typingUsers && typingUsers.length > 0 && (
+                                    <div className="flex items-center gap-2 px-6 py-1">
+                                         <TypingBubble />
+                                         <span className="text-xs text-muted-foreground italic">
+                                             {typingUsers.join(', ')} is typing...
+                                         </span>
+                                    </div>
+                                )}
+                            </div>
                         )
                     }}
                     
                     itemContent={(index, msg) => {
+                         // SYSTEM MESSAGE RENDERING
+                         if (msg.type === 'system') {
+                             return (
+                                 <div className="flex justify-center py-2">
+                                     <span className="text-[10px] bg-muted/50 px-2 py-0.5 rounded-full text-muted-foreground">
+                                         {msg.text}
+                                     </span>
+                                 </div>
+                             );
+                         }
+
                          const isOwn = msg.publisher === currentUser?.id || msg.payload?.sender?.id === currentUser?.id;
                          
                          // Calculate who has read this message (only show on the exact message they read last)

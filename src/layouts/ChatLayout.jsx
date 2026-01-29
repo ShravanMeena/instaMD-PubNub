@@ -190,6 +190,7 @@ const ChatLayout = () => {
                                 onRemoveReaction={removeReaction} // Pass handler
                                 readReceipts={readReceipts}
                                 markAllAsRead={markAllAsRead}
+                                typingUsers={typingUsers}
                            />
                         </div>
 

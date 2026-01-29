@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import usePubNub from './usePubNub';
 import { useChat } from '../context/ChatContext';
 import useNotification from './useNotification';
+import useSound from './useSound';
 import logger from '@/utils/logger';
 
 /**
@@ -25,6 +26,7 @@ const useMessages = (user) => {
     const pubnub = usePubNub();
     const { showError, currentChannel } = useChat();
     const { permission, requestPermission, showNotification } = useNotification();
+    const { playPop, playJoin } = useSound(); // Sound Hooks
     const [startTimetoken, setStartTimetoken] = useState(null);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -99,7 +101,7 @@ const useMessages = (user) => {
             message: (event) => {
                 const msg = event.message;
 
-                // Notification Logic: If document is hidden (user tabbed away), show notification
+                // Notification Logic
                 if (document.hidden && event.publisher !== user.id) {
                      const senderName = msg.sender?.name || "Someone";
                      const bodyText = msg.text || "Sent a file";
@@ -107,6 +109,11 @@ const useMessages = (user) => {
                         body: bodyText,
                         icon: msg.sender?.avatar || '/vite.svg'
                      });
+                }
+
+                // Sound Effect
+                if (event.publisher !== user.id) {
+                    playPop();
                 }
 
                 const fileData = event.file || event.message?.file;
@@ -120,7 +127,7 @@ const useMessages = (user) => {
                     publisher: event.publisher,
                     status: 'sent',
                     clientMessageId: clientMessageId,
-                    actions: {} // Init actions
+                    actions: {} 
                 };
 
                 setMessages(prev => {
@@ -132,19 +139,37 @@ const useMessages = (user) => {
                             return updated.sort((a, b) => a.timetoken - b.timetoken);
                         }
                     }
-                    
-                    // Deduping
                     if (prev.find(m => m.timetoken === event.timetoken)) return prev;
-                    
                     return [...prev, newMessage].sort((a, b) => a.timetoken - b.timetoken);
                 });
             },
-            // Handle Reactions
+            
+            // Handle Presence (System Messages)
+            presence: (event) => {
+                if (event.channel !== CHANNEL) return;
+                const { action, uuid, state } = event;
+                const name = state?.name || uuid;
+
+                if (action === 'join') {
+                    playJoin(); // Sound
+                    const sysMsg = {
+                        id: `sys-${Date.now()}`,
+                        type: 'system',
+                        text: `${name} joined the channel`,
+                        timetoken: Date.now() * 10000
+                    };
+                    setMessages(prev => [...prev, sysMsg].sort((a, b) => a.timetoken - b.timetoken));
+                } 
+                // Optional: Leave messages (can be spammy, so maybe skip or make subtle)
+                // else if (action === 'leave' || action === 'timeout') {
+                //    const sysMsg = { type: 'system', text: `${name} left` ... }
+                // }
+            },
+
             messageAction: (event) => {
                 const { event: actionEvent, data } = event;
                 const { messageTimetoken, actionTimetoken, type, value, uuid } = data;
                 
-                // 'added' or 'removed'
                 setMessages(prev => {
                     return prev.map(msg => {
                         if (msg.timetoken === messageTimetoken) {
@@ -155,7 +180,6 @@ const useMessages = (user) => {
                             const actionList = newActions[type][value];
 
                             if (actionEvent === 'added') {
-                                // Prevent duplicates
                                 if (!actionList.find(a => a.actionTimetoken === actionTimetoken)) {
                                      actionList.push({ uuid, actionTimetoken });
                                 }
@@ -170,7 +194,6 @@ const useMessages = (user) => {
                 });
             },
             
-            // Handle Read Receipts (Signals)
             signal: (event) => {
                 if (event.channel === CHANNEL && event.message.type === 'read_receipt') {
                     const { userId, timetoken } = event.message;
@@ -189,7 +212,6 @@ const useMessages = (user) => {
             withPresence: true 
         });
 
-        // Request permission if not granted yet
         if (permission === 'default') {
              requestPermission();
         }
@@ -198,7 +220,7 @@ const useMessages = (user) => {
             pubnub.removeListener(listener);
             pubnub.unsubscribe({ channels: [CHANNEL] });
         };
-    }, [pubnub, CHANNEL, permission, requestPermission, showNotification, user.id]);
+    }, [pubnub, CHANNEL, permission, requestPermission, showNotification, user.id, playPop, playJoin]);
 
     const fetchMore = useCallback(async () => {
         if (!startTimetoken || !hasMore || isLoadingMore) return;
