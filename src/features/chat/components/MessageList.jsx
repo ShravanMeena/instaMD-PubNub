@@ -1,19 +1,14 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import usePubNub from '../hooks/usePubNub';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { MessageSquare } from 'lucide-react';
-import useChannels from '../hooks/useChannels';
+import MessageInput from './MessageInput'; // Ensure if used here or parent
 import { useChat } from '../context/ChatContext';
 import UserProfileDialog from './UserProfileDialog';
+import { Virtuoso } from 'react-virtuoso';
+import { useNavigate } from 'react-router-dom';
+import useChannels from '../hooks/useChannels';
 
 const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
     const pubnub = usePubNub();
@@ -45,31 +40,25 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
             const result = pubnub.getFileUrl(fileObj);
             if (result && result.url) {
                 fileUrl = result.url;
-                // console.log("Generated URL:", fileUrl);
             } else {
-                 console.warn("getFileUrl returned empty:", result, "for", fileObj);
+                 // console.warn("getFileUrl returned empty:", result, "for", fileObj);
             }
         } catch (e) {
             console.error("Error generating file URL", e);
         }
     }
-    
-    // Debug output if it has a file but no URL
-    if (hasFile && !fileUrl) {
-        console.log("Has File but no URL:", message.file);
-    }
 
     return (
         <div 
             className={cn(
-                "flex gap-3 max-w-[80%] animate-in fade-in slide-in-from-bottom-2 duration-300",
+                "flex gap-3 max-w-[80%] py-1", // Reduced vertical padding for tighter list
                 isOwn ? "self-end flex-row-reverse" : "self-start",
                 isSending && "opacity-70"
             )}
         >
             {!isOwn && (
                 <Avatar 
-                    className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity"
+                    className="h-8 w-8 cursor-pointer hover:opacity-80 transition-opacity mt-1"
                     onClick={() => onUserClick(sender)}
                 >
                     <AvatarImage src={sender?.avatar} />
@@ -93,17 +82,13 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
                         "rounded-xl overflow-hidden mb-1 border border-border bg-muted/30 relative",
                         isOwn ? "rounded-br-none" : "rounded-bl-none"
                     )}>
-                        {/* Debug: Print text if image fails or is hidden */}
-                        {/* <div className="text-[10px] truncate max-w-[200px] text-muted-foreground p-1">{fileUrl}</div> */}
-                        
                         <img 
                             src={fileUrl} 
                             alt="attachment" 
                             className="block max-w-[250px] max-h-[250px] object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
-                            style={{ minWidth: '100px', minHeight: '100px' }} // Force dimensions to test visibility
+                            style={{ minWidth: '100px', minHeight: '100px' }} 
                             onClick={() => window.open(fileUrl, '_blank')}
                             onError={(e) => {
-                                console.error("Image failed to load:", fileUrl);
                                 e.target.style.display = 'none';
                             }}
                         />
@@ -138,45 +123,18 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
     );
 });
 
-import { useNavigate } from 'react-router-dom';
-
 const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoadingMore }) => {
-    const bottomRef = useRef(null);
     const [selectedUser, setSelectedUser] = useState(null);
     const { getDmChannelId, joinedChannels } = useChannels();
-    const { setCurrentChannel } = useChat();
     const navigate = useNavigate();
-
-    // Auto-scroll to bottom ONLY on new message (not load more)
-    // We differentiate by checking if the last message changed or length increased significantly?
-    // For simplicity, we scroll to bottom only on mount and when new messages are added at the END.
-    // However, when loading PREVIOUS messages, we want script position to hold.
-    // This simple implementation might jump, but it's MVP.
-    const prevMessagesLength = useRef(messages.length);
-
-    useEffect(() => {
-        // If length increased by 1 (new message), scroll. 
-        // If length increased by 20 (fetchMore), DON'T scroll to bottom.
-        if (messages.length - prevMessagesLength.current === 1) {
-             bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-        }
-        prevMessagesLength.current = messages.length;
-    }, [messages]);
-
-    useEffect(() => {
-        // Initial load scroll
-        if (messages.length > 0 && prevMessagesLength.current === 0) {
-            bottomRef.current?.scrollIntoView({ behavior: 'auto' });
-        }
-    }, []);
+    const virtuosoRef = useRef(null);
+    const [atBottom, setAtBottom] = useState(true);
 
     const handleDmStart = async () => {
         if (!selectedUser) return;
         
         try {
-            // Check if DM exists locally first
             const existingDm = joinedChannels.find(c => c.type === 'dm' && c.otherUserId === selectedUser.id);
-            
             if (existingDm) {
                 navigate(`/dm/${existingDm.id}`);
             } else {
@@ -189,24 +147,11 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
         }
     };
 
+    // Auto-scroll logic handled natively by Virtuoso via 'followOutput' or 'initialTopMostItemIndex'
+    
     return (
-        <div className="h-full flex-1 overflow-y-auto p-4 flex flex-col gap-4">
-            {/* Load More Button */}
-            {hasMore && (
-                <div className="flex justify-center py-2">
-                    <Button 
-                        variant="ghost" 
-                        size="sm" 
-                        onClick={fetchMore} 
-                        disabled={isLoadingMore}
-                        className="text-xs text-muted-foreground"
-                    >
-                        {isLoadingMore ? "Loading..." : "Load Previous Messages"}
-                    </Button>
-                </div>
-            )}
-
-            {messages.length === 0 && !isLoadingMore && (
+        <div className="h-full flex-1 flex flex-col relative">
+            {messages.length === 0 && !isLoadingMore ? (
                 <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                     <div className="bg-muted/50 p-6 rounded-full mb-4">
                         <span className="text-4xl">👋</span>
@@ -214,22 +159,69 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
                     <p className="font-medium">No messages yet.</p>
                     <p className="text-sm opacity-70">Start the conversation!</p>
                 </div>
+            ) : (
+                <Virtuoso
+                    ref={virtuosoRef}
+                    style={{ height: '100%', width: '100%' }}
+                    data={messages}
+                    // Start at bottom
+                    initialTopMostItemIndex={messages.length - 1}
+                    alignToBottom={true}
+                    followOutput={'auto'} // Smart auto-scroll if user is at bottom
+                    
+                    // Header for "Load More"
+                    components={{
+                        Header: () => (
+                            <div className="py-4 flex justify-center w-full">
+                                {hasMore ? (
+                                    <Button 
+                                        variant="ghost" 
+                                        size="sm" 
+                                        onClick={fetchMore} 
+                                        disabled={isLoadingMore}
+                                        className="text-xs text-muted-foreground"
+                                    >
+                                        {isLoadingMore ? "Loading..." : "Load Previous Messages"}
+                                    </Button>
+                                ) : (
+                                    <span className="text-[10px] text-muted-foreground opacity-50">Start of history</span>
+                                )}
+                            </div>
+                        )
+                    }}
+                    
+                    itemContent={(index, msg) => {
+                         const isOwn = msg.publisher === currentUser?.id || msg.payload?.sender?.id === currentUser?.id;
+                         return (
+                            <div className="px-4">
+                                <MessageBubble 
+                                    message={msg} 
+                                    isOwn={isOwn}
+                                    channel={channel}
+                                    onUserClick={setSelectedUser}
+                                />
+                            </div>
+                         );
+                    }}
+                    
+                    atBottomStateChange={(bottom) => {
+                        setAtBottom(bottom);
+                    }}
+                />
             )}
-            
-            {messages.map((msg) => {
-                 // Check if it's our own message based on pubnub UUID match
-                 const isOwn = msg.publisher === currentUser?.id || msg.payload?.sender?.id === currentUser?.id;
-                 return (
-                    <MessageBubble 
-                        key={msg.id} 
-                        message={msg} 
-                        isOwn={isOwn}
-                        channel={channel}
-                        onUserClick={setSelectedUser}
-                    />
-                 );
-            })}
-            <div ref={bottomRef} />
+
+            {/* Scroll to Bottom Button (Optional UX) */}
+            {!atBottom && messages.length > 0 && (
+                <div className="absolute bottom-4 right-4 z-10 animate-in fade-in zoom-in duration-200">
+                    <Button 
+                        size="sm" 
+                        className="rounded-full shadow-lg h-8 w-8 p-0" 
+                        onClick={() => virtuosoRef.current?.scrollToIndex({ index: messages.length - 1, behavior: 'smooth' })}
+                    >
+                        ↓
+                    </Button>
+                </div>
+            )}
 
             {/* User Profile Dialog */}
             <UserProfileDialog 
