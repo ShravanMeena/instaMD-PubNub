@@ -26,6 +26,16 @@ For easier orchestration, use `docker-compose.yml`:
 docker compose up app
 ```
 
+## 🛡️ Safety Hooks (Husky)
+
+We enforce quality checks before code leaves your machine.
+
+- **Pre-Push Hook**: Automatically runs `npm test`.
+    - If tests pass: Push proceeds.
+    - If tests fail: Push is blocked.
+
+To bypass (emergency only): `git push --no-verify`
+
 ## 🚀 CI/CD Pipeline
 
 The GitHub Actions workflow (`.github/workflows/ci.yml`) handles automation.

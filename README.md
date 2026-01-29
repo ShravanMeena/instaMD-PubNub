@@ -24,6 +24,7 @@ Engineered with a focus on **Code Quality**, **DevOps**, and **Real-Time UX**.
 ### 🛡️ Engineering Quality
 - **100% Component Test Coverage**: Rigorous testing via Vitest.
 - **Production-Safe Logging**: Custom logger suppresses debug info in production.
+- **Git Hooks**: Pre-push hooks prevent broken code from being pushed (Husky).
 - **Error Boundaries**: Graceful failure handling prevents white screens.
 
 ---
