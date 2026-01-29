@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import usePubNub from './usePubNub';
+import logger from '@/utils/logger';
 
 const CHANNEL = 'demo-channel-v2';
 
@@ -27,9 +28,12 @@ const usePresence = (user, currentChannelId) => {
     useEffect(() => {
         if (!user || !currentChannelId) return;
 
-        // Ensure we are using the correct UUID for self-identification
-        const currentUUID = pubnub.getUUID();
-        console.log(`🔌 Presence: Subscribing to ${CHANNEL} as ${currentUUID}`);
+        // FIX: Enforce UUID is set to the current user ID before interacting
+        // This prevents race conditions where we subscribe with a default/temp UUID
+        if (user.id && pubnub.getUUID() !== user.id) {
+             logger.log("🔄 Force Switching PubNub UUID to match Auth User:", user.id);
+             pubnub.setUUID(user.id);
+        }
 
         // 1. Subscribe with Presence
         pubnub.subscribe({
@@ -48,6 +52,7 @@ const usePresence = (user, currentChannelId) => {
                 
                 if (response.channels[CHANNEL]) {
                     const occupants = response.channels[CHANNEL].occupants;
+                    logger.log(`🕵️ HereNow (${CHANNEL}):`, occupants.length, "occupants", occupants);
                     const usersMap = {};
                     occupants.forEach(occ => {
                          usersMap[occ.uuid] = {
@@ -57,19 +62,20 @@ const usePresence = (user, currentChannelId) => {
                              isOnline: true
                          };
                     });
+                    logger.log("✅ State Update: Online Users:", Object.keys(usersMap));
                     setOnlineUsers(usersMap);
                 }
             } catch (e) {
-                console.error("HereNow failed:", e);
+                logger.error("HereNow Error:", e);
             }
         };
 
         fetchHereNow();
-        // Poll every 10 seconds
         const intervalId = setInterval(fetchHereNow, 10000);
 
         // 3. Set Local State
         const updateState = () => {
+           logger.log("📡 Setting My State:", user.name);
            pubnub.setState({
                 channels: [CHANNEL],
                 state: {
@@ -77,9 +83,7 @@ const usePresence = (user, currentChannelId) => {
                     avatar: user.avatar,
                     id: user.id
                 }
-            }).catch(err => {
-                console.error("SetState failed retrying...", err);
-            });
+            }).catch(e => logger.error("SetState Error:", e));
         };
         
         updateState();
@@ -87,9 +91,10 @@ const usePresence = (user, currentChannelId) => {
         // 4. Listeners
         const listener = {
             presence: (event) => {
-                console.log(`👀 Presence Event on ${event.channel}:`, event.action, event.uuid);
                 const { action, uuid, state } = event;
                 if (event.channel !== CHANNEL) return;
+                
+                logger.log(`🔔 Presence Event: ${action} from ${uuid}`, state);
 
                 setOnlineUsers(prev => {
                     const next = { ...prev };
@@ -103,6 +108,7 @@ const usePresence = (user, currentChannelId) => {
                     } else if (action === 'leave' || action === 'timeout') {
                         delete next[uuid];
                     }
+                    logger.log("🔄 Updated Online List:", Object.keys(next));
                     return next;
                 });
             },
@@ -110,15 +116,15 @@ const usePresence = (user, currentChannelId) => {
                 if (event.channel === CHANNEL) {
                     const msg = event.message;
                     const userId = msg.userId || msg.uid || msg.id;
+                    const userName = msg.userName || msg.name || 'Anonymous'; // Support name
                     const isTyping = msg.isTyping !== undefined ? msg.isTyping : (msg.t === true || msg.t === 1 || msg.it === 1);
                     const isTypingSignal = (msg.type === 'typing' || msg.tp === 't' || msg.t !== undefined);
 
                     if (isTypingSignal && userId) {
                         if (userId === user.id) return; 
-                        console.log(`✍️ User ${userId} is typing: ${isTyping}`);
                         setTypingUsers(prev => {
                             if (isTyping) {
-                                return { ...prev, [userId]: true };
+                                return { ...prev, [userId]: userName }; // Store Name instead of true
                             } else {
                                 const next = { ...prev };
                                 delete next[userId];
@@ -127,13 +133,26 @@ const usePresence = (user, currentChannelId) => {
                         });
                     }
                 }
+            },
+            status: (statusEvent) => {
+                // Monitor Connection Status specifically for this channel subscription
+                if (statusEvent.category === "PNConnectedCategory") {
+                    logger.log(`✅ PubNub Connected to ${CHANNEL}!`);
+                    // Retry setState once connected to be sure
+                    updateState();
+                } else if (statusEvent.category === "PNNetworkDownCategory") {
+                    logger.log("❌ PubNub Network Down");
+                } else if (statusEvent.category === "PNAccessDeniedCategory") {
+                    logger.error("🚫 PubNub Access Denied (Check Keys/PAM):", CHANNEL);
+                } else {
+                    logger.log("ℹ️ PubNub Status:", statusEvent.category);
+                }
             }
         };
 
         pubnub.addListener(listener);
 
         return () => {
-            console.log(`🔌 Presence: Unsubscribing from ${CHANNEL}`);
             clearInterval(intervalId);
             pubnub.removeListener(listener);
             pubnub.unsubscribe({ channels: [CHANNEL] });
@@ -145,30 +164,28 @@ const usePresence = (user, currentChannelId) => {
     // Send typing signal
     const sendTypingSignal = (isTyping) => {
         if (!user || !currentChannelId) {
-             // console.warn("⚠️ Cannot send typing signal: Missing user or channelId");
              return;
         }
         
-        // Debug: sending simpler payload 
         const message = { 
             id: user.id, 
-            t: isTyping // boolean
+            name: user.name, // Send Name!
+            t: isTyping 
         };
         
-        console.log(`📤 Sending typing signal to ${CHANNEL}`, message);
+        // logger.log(`📤 Sending typing to ${CHANNEL}`, message);
 
         pubnub.signal({
             channel: CHANNEL,
             message: message
         }).catch(err => {
-            console.error("Signal failed:", err);
-            console.error("Payload was:", message);
+            logger.error("Signal failed:", err);
         });
     };
 
     return { 
         onlineUsers: Object.values(onlineUsers), 
-        typingUsers: Object.keys(typingUsers), 
+        typingUsers: Object.values(typingUsers), // Return array of Names
         sendTypingSignal 
     };
 };

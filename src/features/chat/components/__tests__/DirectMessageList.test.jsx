@@ -6,7 +6,8 @@ import { MemoryRouter } from 'react-router-dom';
 // Mocks
 vi.mock('../../context/ChatContext', () => ({
     useChat: () => ({
-        currentChannel: { id: 'c1' }
+        currentChannel: { id: 'c1' },
+        onlineUsers: [] // Add this
     })
 }));
 

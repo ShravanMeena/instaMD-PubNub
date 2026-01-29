@@ -26,6 +26,20 @@ vi.mock('react-router-dom', () => ({
     useNavigate: () => vi.fn(),
 }));
 
+// Mock Virtuoso because it relies on real scrolling/layout
+vi.mock('react-virtuoso', () => ({
+    Virtuoso: ({ data, itemContent, components }) => (
+        <div data-testid="virtuoso-list">
+            {components?.Header && <components.Header />}
+            {data.map((item, index) => (
+                <div key={item.id || index}>
+                    {itemContent(index, item)}
+                </div>
+            ))}
+        </div>
+    )
+}));
+
 // Mock child components to avoid deep rendering issues
 vi.mock('../UserProfileDialog', () => ({
     default: () => <div data-testid="user-profile-dialog" />
@@ -78,6 +92,8 @@ describe('MessageList', () => {
                 hasMore={false} 
                 isLoadingMore={false}
                 fetchMore={vi.fn()}
+                onAddReaction={vi.fn()}
+                onRemoveReaction={vi.fn()}
             />
         );
         expect(screen.getByText('Hello World')).toBeInTheDocument();

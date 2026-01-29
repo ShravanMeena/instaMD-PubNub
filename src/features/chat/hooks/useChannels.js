@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/context/AuthContext';
+import logger from '@/utils/logger';
 
 const useChannels = () => {
     const { user } = useAuth();
@@ -10,10 +11,8 @@ const useChannels = () => {
     const [error, setError] = useState(null);
 
     const fetchChannels = useCallback(async () => {
-        console.log("useChannels: fetchChannels called. User:", user?.id);
         setError(null);
         if (!user) {
-            console.log("useChannels: No user, aborting fetch.");
             setLoading(false);
             return;
         }
@@ -26,17 +25,10 @@ const useChannels = () => {
                 .eq('type', 'public')
                 .order('created_at', { ascending: false });
 
-            if (publicError) {
-                console.error("Error fetching public channels:", publicError);
-                throw publicError;
-            }
-            console.log("✅ UseChannels: Fetched Public Channels:", publicData);
+            if (publicError) throw publicError;
+            
             setPublicChannels(publicData || []);
             
-            // ... (rest of logic)
-
-
-
             // 2. Fetch channels I have joined
             const { data: myData, error: myError } = await supabase
                 .from('channel_members')
@@ -60,17 +52,12 @@ const useChannels = () => {
             let dmsWithMetadata = [];
 
             if (dmChannelIds.length > 0) {
-                 console.log("🔍 UseChannels: Found DM Ids:", dmChannelIds);
-                 
                  const { data: membersData, error: membersError } = await supabase
                     .from('channel_members')
                     .select('channel_id, profiles(id, username, avatar_url)')
                     .in('channel_id', dmChannelIds)
                     .neq('user_id', user.id); // Get the OTHER person
                  
-                 if (membersError) console.error("❌ UseChannels: Error fetching DM members:", membersError);
-                 console.log("🔍 UseChannels: Raw Members Data:", membersData);
-
                  // Map back to channel objects
                  dmsWithMetadata = joined
                     .filter(c => c.type === 'dm')
@@ -96,7 +83,7 @@ const useChannels = () => {
             setJoinedChannels([...publicJoined, ...dmsWithMetadata]);
 
         } catch (error) {
-            console.error("Error fetching channels:", error);
+            logger.error("Error fetching channels:", error);
         } finally {
             setLoading(false);
         }
@@ -188,8 +175,12 @@ const useChannels = () => {
                 });
 
             if (error) {
-                // Ignore unique violation if already joined
-                if (error.code !== '23505') throw error;
+                // Ignore unique violation if already joined (Postgres 23505 or HTTP 409)
+                if (error.code === '23505' || error.status === 409 || error.message?.includes('violates unique constraint')) {
+                    // Already joined, proceed gracefully
+                } else {
+                    throw error;
+                }
             }
             
             // Optimistic update? Better to refresh or fetch specific channel
@@ -209,7 +200,7 @@ const useChannels = () => {
             
             return true;
         } catch (error) {
-            console.error("Error joining channel:", error);
+            logger.error("Error joining channel:", error);
             return false;
         }
     };

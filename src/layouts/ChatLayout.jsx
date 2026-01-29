@@ -57,7 +57,7 @@ const ChatLayout = () => {
     }, [channelId, joinedChannels, channelsLoading, setCurrentChannel, currentChannel, joinChannel]);
 
     // Messages & Presence
-    const { messages, sendMessage, channel, fetchMore, hasMore, isLoadingMore } = useMessages(user);
+    const { messages, sendMessage, channel, fetchMore, hasMore, isLoadingMore, addReaction, removeReaction, readReceipts, markAllAsRead } = useMessages(user);
     const { onlineUsers, typingUsers, sendTypingSignal } = usePresence(user, currentChannel?.id);
     const { isConnected, isReconnecting } = useConnectionStatus();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -108,9 +108,13 @@ const ChatLayout = () => {
                                 {currentChannel ? (currentChannel.isDm ? currentChannel.name : `#${currentChannel.name}`) : 'Select a Channel'}
                                 {currentChannel?.type === 'private' && <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded border border-border">Private</span>}
                             </h2>
-                            <span className="text-xs text-muted-foreground animate-pulse">
+                            <span className="text-xs text-muted-foreground animate-pulse min-h-[16px] block">
                                 {typingUsers.length > 0 ? (
-                                     <span className="text-primary font-medium">Someone is typing...</span>
+                                     <span className="text-primary font-medium">
+                                        {typingUsers.length === 1 && `${typingUsers[0]} is typing...`}
+                                        {typingUsers.length === 2 && `${typingUsers[0]} and ${typingUsers[1]} are typing...`}
+                                        {typingUsers.length > 2 && `${typingUsers[0]} and ${typingUsers.length - 1} others are typing...`}
+                                     </span>
                                 ) : (
                                     /* Show "Online" only for DM if the other person is there */
                                     currentChannel?.isDm && onlineUsers.some(u => u.id === currentChannel.otherUserId) 
@@ -182,6 +186,11 @@ const ChatLayout = () => {
                                 fetchMore={fetchMore}
                                 hasMore={hasMore}
                                 isLoadingMore={isLoadingMore}
+                                onAddReaction={addReaction}      // Pass handler
+                                onRemoveReaction={removeReaction} // Pass handler
+                                readReceipts={readReceipts}
+                                markAllAsRead={markAllAsRead}
+                                typingUsers={typingUsers}
                            />
                         </div>
 
