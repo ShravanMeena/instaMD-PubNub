@@ -57,7 +57,7 @@ const ChatLayout = () => {
     }, [channelId, joinedChannels, channelsLoading, setCurrentChannel, currentChannel, joinChannel]);
 
     // Messages & Presence
-    const { messages, sendMessage, channel, fetchMore, hasMore, isLoadingMore } = useMessages(user);
+    const { messages, sendMessage, channel, fetchMore, hasMore, isLoadingMore, addReaction, removeReaction } = useMessages(user);
     const { onlineUsers, typingUsers, sendTypingSignal } = usePresence(user, currentChannel?.id);
     const { isConnected, isReconnecting } = useConnectionStatus();
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -182,6 +182,8 @@ const ChatLayout = () => {
                                 fetchMore={fetchMore}
                                 hasMore={hasMore}
                                 isLoadingMore={isLoadingMore}
+                                onAddReaction={addReaction}      // Pass handler
+                                onRemoveReaction={removeReaction} // Pass handler
                            />
                         </div>
 

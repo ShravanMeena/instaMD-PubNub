@@ -11,23 +11,26 @@ import { useChat } from '../context/ChatContext';
  * @returns {Function} sendMessage - Function to publish a new text message.
  * @returns {string} channel - The ID of the currently active channel.
  */
+// Helper to parse actions
+const parseActions = (msg) => {
+    // msg.actions is object like { "reaction": { "heart": [{uuid, actionTimetoken}, ...] } }
+    // We want to flatten it to a simple array or object for UI
+    // Structure: actions: { "reaction": { "❤️": [ {uuid, actionTimetoken} ] } }
+    return msg.actions || {};
+};
+
 const useMessages = (user) => {
     const pubnub = usePubNub();
-    const { showError, currentChannel } = useChat(); // Access currentChannel
-    // State for pagination
+    const { showError, currentChannel } = useChat();
     const [startTimetoken, setStartTimetoken] = useState(null);
     const [hasMore, setHasMore] = useState(true);
     const [isLoadingMore, setIsLoadingMore] = useState(false);
     
     const [messages, setMessages] = useState([]);
     
-    // Identifier for the channel to subscribe to
     const CHANNEL = currentChannel?.id || 'demo-channel-v2';
-    
-    // Use a ref to keep track of messages for the listener closure
     const messagesRef = useRef([]);
 
-    // Clear messages when channel changes
     useEffect(() => {
         setMessages([]);
         messagesRef.current = [];
@@ -35,7 +38,6 @@ const useMessages = (user) => {
         setHasMore(true);
     }, [CHANNEL]);
 
-    // Sync ref with state
     useEffect(() => {
         messagesRef.current = messages;
     }, [messages]);
@@ -43,7 +45,6 @@ const useMessages = (user) => {
     useEffect(() => {
         if (!user) return;
 
-        // 1. Fetch History
         const fetchHistory = async () => {
             try {
                 const response = await pubnub.fetchMessages({
@@ -54,7 +55,6 @@ const useMessages = (user) => {
                 });
 
                 if (response.channels[CHANNEL]) {
-                   // Standardize message format
                    const history = response.channels[CHANNEL].map(msg => {
                        let payload = msg.message;
                        let file = null;
@@ -73,23 +73,16 @@ const useMessages = (user) => {
                            file: file, 
                            timetoken: msg.timetoken,
                            publisher: msg.uuid || msg.producer,
-                           status: 'sent' // Confirmed from history
+                           status: 'sent',
+                           actions: parseActions(msg) // Parse actions
                        };
                    });
                    
                    setMessages(history);
                    
-                   // Update pagination cursor
-                   if (history.length > 0) {
-                       setStartTimetoken(history[0].timetoken);
-                   }
-                   
-                   // If we got fewer than requested, we reached the beginning
-                   if (history.length < 20) {
-                       setHasMore(false);
-                   }
+                   if (history.length > 0) setStartTimetoken(history[0].timetoken);
+                   if (history.length < 20) setHasMore(false);
                 } else {
-                    // No messages returned
                     setHasMore(false);
                 }
             } catch (error) {
@@ -99,11 +92,8 @@ const useMessages = (user) => {
 
         fetchHistory();
 
-        // 2. Subscribe & Listen
         const listener = {
             message: (event) => {
-                console.log("Raw PubNub Message Event:", event);
-                
                 const fileData = event.file || event.message?.file;
                 const clientMessageId = event.message?.clientMessageId;
 
@@ -114,21 +104,19 @@ const useMessages = (user) => {
                     timetoken: event.timetoken,
                     publisher: event.publisher,
                     status: 'sent',
-                    clientMessageId: clientMessageId, // Store for matching
+                    clientMessageId: clientMessageId,
+                    actions: {} // Init actions
                 };
 
                 setMessages(prev => {
-                    // OPTIMISTIC DEDUPING:
                     if (clientMessageId) {
                         const existingIdx = prev.findIndex(m => m.clientMessageId === clientMessageId);
                         if (existingIdx !== -1) {
                             const updated = [...prev];
-                            updated[existingIdx] = newMessage; // Swap pending with confirmed
-                            // Sort needed after update? Probably not if order was preserved, but safest to sort.
+                            updated[existingIdx] = newMessage;
                             return updated.sort((a, b) => a.timetoken - b.timetoken);
                         }
                     }
-                    // Append and Sort
                     const nextMessages = [...prev, newMessage];
                     return nextMessages.sort((a, b) => a.timetoken - b.timetoken);
                 });
@@ -140,11 +128,41 @@ const useMessages = (user) => {
                     file: event.file,       
                     timetoken: event.timetoken,
                     publisher: event.publisher,
-                    status: 'sent'
+                    status: 'sent',
+                    actions: {}
                 };
-
                 setMessages(prev => [...prev, newMessage].sort((a, b) => a.timetoken - b.timetoken));
             },
+            // Handle Reactions
+            messageAction: (event) => {
+                const { event: actionEvent, data } = event;
+                const { messageTimetoken, actionTimetoken, type, value, uuid } = data;
+                
+                // 'added' or 'removed'
+                setMessages(prev => {
+                    return prev.map(msg => {
+                        if (msg.timetoken === messageTimetoken) {
+                            const newActions = { ...msg.actions };
+                            if (!newActions[type]) newActions[type] = {};
+                            if (!newActions[type][value]) newActions[type][value] = [];
+
+                            const actionList = newActions[type][value];
+
+                            if (actionEvent === 'added') {
+                                // Prevent duplicates
+                                if (!actionList.find(a => a.actionTimetoken === actionTimetoken)) {
+                                     actionList.push({ uuid, actionTimetoken });
+                                }
+                            } else if (actionEvent === 'removed') {
+                                newActions[type][value] = actionList.filter(a => a.actionTimetoken !== actionTimetoken);
+                            }
+                            
+                            return { ...msg, actions: newActions };
+                        }
+                        return msg;
+                    });
+                });
+            }
         };
 
         pubnub.addListener(listener);
@@ -154,33 +172,21 @@ const useMessages = (user) => {
             withPresence: true 
         });
 
-        const statusListener = {
-            status: (statusEvent) => {
-                if (statusEvent.category === "PNConnectedCategory") {
-                    console.log("Connected to PubNub!");
-                }
-            }
-        };
-        pubnub.addListener(statusListener);
-
         return () => {
             pubnub.unsubscribe({ channels: [CHANNEL] });
             pubnub.removeListener(listener);
-            pubnub.removeListener(statusListener);
         };
     }, [user, pubnub, CHANNEL]);
 
-    // Pagination Function
     const fetchMore = useCallback(async () => {
         if (!startTimetoken || !hasMore || isLoadingMore) return;
-        
         setIsLoadingMore(true);
         try {
             const response = await pubnub.fetchMessages({
                 channels: [CHANNEL],
                 count: 20,
-                start: startTimetoken, // Fetch older than this
-                includeMessageActions: true,
+                start: startTimetoken,
+                includeMessageActions: true, // IMPORTANT
                 includeMeta: true
             });
 
@@ -188,14 +194,9 @@ const useMessages = (user) => {
                 const olderMessages = response.channels[CHANNEL].map(msg => {
                        let payload = msg.message;
                        let file = null;
-
                        if (msg.message.file && msg.message.message) {
-                           file = msg.message.file;
-                           payload = msg.message.message;
-                       }
-                       else if (msg.message.file) {
-                            file = msg.message.file;
-                       }
+                           file = msg.message.file; payload = msg.message.message;
+                       } else if (msg.message.file) { file = msg.message.file; }
 
                        return {
                            id: msg.timetoken,
@@ -203,21 +204,19 @@ const useMessages = (user) => {
                            file: file, 
                            timetoken: msg.timetoken,
                            publisher: msg.uuid || msg.producer,
-                           status: 'sent'
+                           status: 'sent',
+                           actions: parseActions(msg)
                        };
                 });
                 
                 setMessages(prev => [...olderMessages, ...prev]);
                 setStartTimetoken(olderMessages[0].timetoken);
-                
-                if (olderMessages.length < 20) {
-                    setHasMore(false);
-                }
+                if (olderMessages.length < 20) setHasMore(false);
             } else {
                 setHasMore(false);
             }
         } catch (error) {
-            console.error("Failed to fetch more history:", error);
+            console.error("Failed to fetch more:", error);
         } finally {
             setIsLoadingMore(false);
         }
@@ -225,51 +224,65 @@ const useMessages = (user) => {
 
     const sendMessage = useCallback(async (text) => {
         if (!text.trim() || !user) return;
-
-        const clientMessageId = crypto.randomUUID(); // Native browser UUID
+        const clientMessageId = crypto.randomUUID();
         const now = new Date();
-
         const messagePayload = {
             text,
-            sender: {
-                id: user.id,
-                name: user.name,
-                avatar: user.avatar,
-                color: user.color
-            },
+            sender: { id: user.id, name: user.name, avatar: user.avatar, color: user.color },
             type: 'text',
             createdAt: now.toISOString(),
-            clientMessageId: clientMessageId // Send this to server
+            clientMessageId
         };
 
-        // 1. Optimistic Update
         const optimisticMessage = {
-            id: clientMessageId, // Temporary ID
-            clientMessageId: clientMessageId,
+            id: clientMessageId,
+            clientMessageId,
             payload: messagePayload,
             publisher: user.id,
-            timetoken: now.getTime() * 10000, // Fake timetoken
-            status: 'sending' // Flag for UI
+            timetoken: now.getTime() * 10000,
+            status: 'sending',
+            actions: {}
         };
         
         setMessages(prev => [...prev, optimisticMessage]);
 
         try {
-            await pubnub.publish({
-                channel: CHANNEL,
-                message: messagePayload,
-            });
-            // 2. Success - Listener will receive message and swap it based on clientMessageId
+            await pubnub.publish({ channel: CHANNEL, message: messagePayload });
         } catch (error) {
              console.error("Failed to publish:", error);
              showError(`Failed: ${error.message}`);
-             
-             // 3. Rollback or Error State (Optional: remove optimistic message)
-             setMessages(prev => prev.map(m => 
-                m.clientMessageId === clientMessageId ? { ...m, status: 'error' } : m
-             ));
+             setMessages(prev => prev.map(m => m.clientMessageId === clientMessageId ? { ...m, status: 'error' } : m));
         }
     }, [user, pubnub, showError, CHANNEL]);
+
+    // NEW: Add Reaction
+    const addReaction = useCallback(async (messageTimetoken, emoji) => {
+        try {
+            await pubnub.addMessageAction({
+                channel: CHANNEL,
+                messageTimetoken: messageTimetoken,
+                action: {
+                    type: 'reaction',
+                    value: emoji
+                }
+            });
+        } catch (e) {
+            console.error("Failed to add reaction:", e);
+        }
+    }, [pubnub, CHANNEL]);
+
+    // NEW: Remove Reaction
+    const removeReaction = useCallback(async (messageTimetoken, actionTimetoken) => {
+        try {
+            await pubnub.removeMessageAction({
+                channel: CHANNEL,
+                messageTimetoken: messageTimetoken,
+                actionTimetoken: actionTimetoken
+            });
+        } catch (e) {
+            console.error("Failed to remove reaction:", e);
+        }
+    }, [pubnub, CHANNEL]);
 
     return { 
         messages, 
@@ -277,7 +290,9 @@ const useMessages = (user) => {
         channel: CHANNEL,
         fetchMore,
         hasMore,
-        isLoadingMore
+        isLoadingMore,
+        addReaction,    // Exposed
+        removeReaction  // Exposed
     };
 };
 

@@ -48,8 +48,10 @@ const usePresence = (user, currentChannelId) => {
                 
                 if (response.channels[CHANNEL]) {
                     const occupants = response.channels[CHANNEL].occupants;
+                    console.log("👥 HereNow Occupants:", occupants); // DEBUG
                     const usersMap = {};
                     occupants.forEach(occ => {
+                         // Fallback structure if state is missing
                          usersMap[occ.uuid] = {
                              id: occ.uuid,
                              name: occ.state?.name || `User ${occ.uuid.substring(0,4)}`,
@@ -57,7 +59,10 @@ const usePresence = (user, currentChannelId) => {
                              isOnline: true
                          };
                     });
+                    console.log("✅ Parsed Online Users:", usersMap); // DEBUG
                     setOnlineUsers(usersMap);
+                } else {
+                    console.log("⚠️ No occupants found in HereNow for", CHANNEL);
                 }
             } catch (e) {
                 console.error("HereNow failed:", e);

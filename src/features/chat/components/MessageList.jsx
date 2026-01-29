@@ -10,10 +10,61 @@ import { Virtuoso } from 'react-virtuoso';
 import { useNavigate } from 'react-router-dom';
 import useChannels from '../hooks/useChannels';
 
-const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
+const ReactionBar = ({ reactions, onAdd, onRemove, currentUserId }) => {
+    // reactions: { "reaction": { "👍": [{uuid, actionTimetoken}, ...] } }
+    const reactionMap = reactions?.reaction || {};
+    
+    return (
+        <div className="flex flex-wrap gap-1 mt-1 justify-end">
+            {Object.entries(reactionMap).map(([emoji, actions]) => {
+                if (!actions || actions.length === 0) return null;
+                
+                const count = actions.length;
+                const hasReacted = actions.some(a => a.uuid === currentUserId);
+                const myAction = actions.find(a => a.uuid === currentUserId);
+
+                return (
+                    <button
+                        key={emoji}
+                        onClick={() => hasReacted ? onRemove(myAction.actionTimetoken) : onAdd(emoji)}
+                        className={cn(
+                            "flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] border transition-colors",
+                            hasReacted 
+                                ? "bg-primary/20 border-primary text-primary" 
+                                : "bg-muted border-border text-muted-foreground hover:bg-muted/80"
+                        )}
+                    >
+                        <span>{emoji}</span>
+                        <span className="font-semibold">{count}</span>
+                    </button>
+                );
+            })}
+        </div>
+    );
+};
+
+const EmojiPicker = ({ onSelect }) => {
+    const emojis = ["❤️", "😂", "👍", "🔥", "😮", "😢"];
+    return (
+        <div className="flex gap-1 bg-popover border border-border p-1 rounded-full shadow-lg">
+            {emojis.map(emoji => (
+                <button 
+                    key={emoji} 
+                    onClick={() => onSelect(emoji)}
+                    className="hover:bg-muted rounded-full p-1 transition-colors text-sm hover:scale-125 duration-200"
+                >
+                    {emoji}
+                </button>
+            ))}
+        </div>
+    );
+};
+
+const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick, onAddReaction, onRemoveReaction, currentUserId }) => {
     const pubnub = usePubNub();
     const isSending = message.status === 'sending';
     const isError = message.status === 'error';
+    const [showActions, setShowActions] = useState(false);
     
     // Helper to format time
     const formatTime = (isoString) => {
@@ -29,20 +80,11 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
 
     // Use URL from file object if available, otherwise generate it
     let fileUrl = message.file?.url || null;
-    
     if (hasFile && !fileUrl) {
         try {
-            const fileObj = {
-                channel: channel,
-                id: message.file?.id,
-                name: message.file?.name
-            };
+            const fileObj = { channel: channel, id: message.file?.id, name: message.file?.name };
             const result = pubnub.getFileUrl(fileObj);
-            if (result && result.url) {
-                fileUrl = result.url;
-            } else {
-                 // console.warn("getFileUrl returned empty:", result, "for", fileObj);
-            }
+            if (result && result.url) fileUrl = result.url;
         } catch (e) {
             console.error("Error generating file URL", e);
         }
@@ -51,10 +93,12 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
     return (
         <div 
             className={cn(
-                "flex gap-3 max-w-[80%] py-1", // Reduced vertical padding for tighter list
+                "flex gap-3 max-w-[80%] py-1 group relative", 
                 isOwn ? "self-end flex-row-reverse" : "self-start",
                 isSending && "opacity-70"
             )}
+            onMouseEnter={() => setShowActions(true)}
+            onMouseLeave={() => setShowActions(false)}
         >
             {!isOwn && (
                 <Avatar 
@@ -76,42 +120,72 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
                         {sender?.name}
                     </span>
                 )}
-                
+
                 {hasFile && fileUrl && (
-                     <div className={cn(
-                        "rounded-xl overflow-hidden mb-1 border border-border bg-muted/30 relative",
-                        isOwn ? "rounded-br-none" : "rounded-bl-none"
-                    )}>
-                        <img 
-                            src={fileUrl} 
-                            alt="attachment" 
-                            className="block max-w-[250px] max-h-[250px] object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
-                            style={{ minWidth: '100px', minHeight: '100px' }} 
-                            onClick={() => window.open(fileUrl, '_blank')}
-                            onError={(e) => {
-                                e.target.style.display = 'none';
-                            }}
-                        />
+                     <div className="relative group/file inline-block mb-1">
+                         <div className={cn(
+                            "rounded-xl overflow-hidden border border-border bg-muted/30 relative",
+                            isOwn ? "rounded-br-none" : "rounded-bl-none"
+                        )}>
+                            <img 
+                                src={fileUrl} 
+                                alt="attachment" 
+                                className="block max-w-[250px] max-h-[250px] object-cover cursor-pointer hover:scale-105 transition-transform duration-300"
+                                style={{ minWidth: '100px', minHeight: '100px' }} 
+                                onClick={() => window.open(fileUrl, '_blank')}
+                                onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                         </div>
+                         {/* Reaction Trigger for File */}
+                         {!isSending && !isError && (
+                            <div className={cn(
+                                "absolute top-2 opacity-0 group-hover/file:opacity-100 transition-opacity duration-200 z-10",
+                                isOwn ? "right-full mr-2" : "left-full ml-2"
+                            )}>
+                                <EmojiPicker onSelect={(emoji) => onAddReaction(message.timetoken, emoji)} />
+                            </div>
+                         )}
                      </div>
                 )}
 
                 {hasText && (
-                    <div 
-                        className={cn(
-                            "p-3 rounded-2xl text-sm leading-relaxed shadow-sm relative",
-                            isOwn 
-                                ? "bg-primary text-primary-foreground rounded-br-none" 
-                                : "bg-muted text-foreground border border-border rounded-bl-none",
-                             isError && "bg-destructive text-destructive-foreground"
-                        )}
-                    >
-                        {payload.text}
-                        {isError && (
-                            <span className="absolute -bottom-5 right-0 text-[10px] text-destructive font-bold flex items-center gap-1">
-                                Failed to send
-                            </span>
+                    <div className="relative group/text inline-block max-w-full">
+                        <div 
+                            className={cn(
+                                "p-3 rounded-2xl text-sm leading-relaxed shadow-sm relative break-words",
+                                isOwn 
+                                    ? "bg-primary text-primary-foreground rounded-br-none" 
+                                    : "bg-muted text-foreground border border-border rounded-bl-none",
+                                 isError && "bg-destructive text-destructive-foreground"
+                            )}
+                        >
+                            {payload.text}
+                            {isError && (
+                                <span className="absolute -bottom-5 right-0 text-[10px] text-destructive font-bold flex items-center gap-1">
+                                    Failed to send
+                                </span>
+                            )}
+                        </div>
+                        {/* Reaction Trigger for Text */}
+                        {!isSending && !isError && (
+                            <div className={cn(
+                                "absolute top-1/2 -translate-y-1/2 opacity-0 group-hover/text:opacity-100 transition-opacity duration-200 z-10",
+                                isOwn ? "right-full mr-2" : "left-full ml-2"
+                            )}>
+                                <EmojiPicker onSelect={(emoji) => onAddReaction(message.timetoken, emoji)} />
+                            </div>
                         )}
                     </div>
+                )}
+                
+                {/* Reactions Display */}
+                {message.actions && (
+                    <ReactionBar 
+                        reactions={message.actions} 
+                        onAdd={(emoji) => onAddReaction(message.timetoken, emoji)}
+                        onRemove={(actionTimetoken) => onRemoveReaction(message.timetoken, actionTimetoken)}
+                        currentUserId={currentUserId}
+                    />
                 )}
                 
                 <span className="text-[10px] text-muted-foreground opacity-70 mt-1 px-1 flex items-center gap-1">
@@ -123,7 +197,7 @@ const MessageBubble = React.memo(({ message, isOwn, channel, onUserClick }) => {
     );
 });
 
-const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoadingMore }) => {
+const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoadingMore, onAddReaction, onRemoveReaction }) => {
     const [selectedUser, setSelectedUser] = useState(null);
     const { getDmChannelId, joinedChannels } = useChannels();
     const navigate = useNavigate();
@@ -132,7 +206,6 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
 
     const handleDmStart = async () => {
         if (!selectedUser) return;
-        
         try {
             const existingDm = joinedChannels.find(c => c.type === 'dm' && c.otherUserId === selectedUser.id);
             if (existingDm) {
@@ -147,8 +220,6 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
         }
     };
 
-    // Auto-scroll logic handled natively by Virtuoso via 'followOutput' or 'initialTopMostItemIndex'
-    
     return (
         <div className="h-full flex-1 flex flex-col relative">
             {messages.length === 0 && !isLoadingMore ? (
@@ -164,12 +235,10 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
                     ref={virtuosoRef}
                     style={{ height: '100%', width: '100%' }}
                     data={messages}
-                    // Start at bottom
                     initialTopMostItemIndex={messages.length - 1}
                     alignToBottom={true}
-                    followOutput={'auto'} // Smart auto-scroll if user is at bottom
+                    followOutput={'auto'}
                     
-                    // Header for "Load More"
                     components={{
                         Header: () => (
                             <div className="py-4 flex justify-center w-full">
@@ -199,6 +268,9 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
                                     isOwn={isOwn}
                                     channel={channel}
                                     onUserClick={setSelectedUser}
+                                    onAddReaction={onAddReaction}
+                                    onRemoveReaction={onRemoveReaction}
+                                    currentUserId={currentUser?.id}
                                 />
                             </div>
                          );
@@ -210,7 +282,6 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
                 />
             )}
 
-            {/* Scroll to Bottom Button (Optional UX) */}
             {!atBottom && messages.length > 0 && (
                 <div className="absolute bottom-4 right-4 z-10 animate-in fade-in zoom-in duration-200">
                     <Button 
@@ -223,7 +294,6 @@ const MessageList = ({ messages, currentUser, channel, fetchMore, hasMore, isLoa
                 </div>
             )}
 
-            {/* User Profile Dialog */}
             <UserProfileDialog 
                 user={selectedUser}
                 isOpen={!!selectedUser}
