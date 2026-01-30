@@ -9,6 +9,7 @@ Engineered with a focus on **Code Quality**, **DevOps**, and **Real-Time UX**.
 
 ## 📚 Documentation
 - **[Architecture Overview](docs/ARCHITECTURE.md)**: Data flow, component diagrams, and directory structure.
+- **[Developer Guide](docs/DEVELOPMENT.md)**: Testing, Husky hooks, and local setup.
 - **[Deployment Guide](docs/DEPLOYMENT.md)**: Docker, CI/CD pipelines, and environment setup.
 
 ---

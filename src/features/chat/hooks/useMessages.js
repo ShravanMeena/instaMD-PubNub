@@ -47,6 +47,48 @@ const useMessages = (user) => {
         messagesRef.current = messages;
     }, [messages]);
 
+    // Helper to normalize and add messages
+    const processMessages = useCallback((channels, isHistory = false) => {
+        if (!channels[CHANNEL]) return;
+        
+        const newMessages = channels[CHANNEL].map(msg => {
+            let payload = msg.message;
+            let file = null;
+            if (msg.message.file && msg.message.message) {
+                file = msg.message.file; payload = msg.message.message;
+            } else if (msg.message.file) { file = msg.message.file; }
+
+            return {
+                id: msg.timetoken,
+                payload: payload,
+                file: file, 
+                timetoken: msg.timetoken,
+                publisher: msg.uuid || msg.producer,
+                status: 'sent',
+                actions: parseActions(msg)
+            };
+        });
+
+        if (isHistory) {
+             setMessages(prev => {
+                const combined = [...newMessages, ...prev];
+                // basic dedupe
+                const unique = combined.filter((v,i,a)=>a.findIndex(t=>(t.timetoken === v.timetoken))===i);
+                return unique.sort((a, b) => a.timetoken - b.timetoken);
+             });
+             if (newMessages.length > 0) setStartTimetoken(newMessages[0].timetoken);
+             if (newMessages.length < 20) setHasMore(false);
+        } else {
+             // Reconnection / Initial load (New or mixed)
+             setMessages(prev => {
+                 const combined = [...prev, ...newMessages];
+                 const unique = combined.filter((v,i,a)=>a.findIndex(t=>(t.timetoken === v.timetoken))===i);
+                 return unique.sort((a, b) => a.timetoken - b.timetoken);
+             });
+             if (newMessages.length > 0 && !startTimetoken) setStartTimetoken(newMessages[0].timetoken);
+        }
+    }, [CHANNEL, startTimetoken]);
+
     useEffect(() => {
         if (!user) return;
 
@@ -58,38 +100,7 @@ const useMessages = (user) => {
                     includeMessageActions: true,
                     includeMeta: true
                 });
-
-                if (response.channels[CHANNEL]) {
-                   const history = response.channels[CHANNEL].map(msg => {
-                       let payload = msg.message;
-                       let file = null;
-
-                       if (msg.message.file && msg.message.message) {
-                           file = msg.message.file;
-                           payload = msg.message.message;
-                       }
-                       else if (msg.message.file) {
-                            file = msg.message.file;
-                       }
-
-                       return {
-                           id: msg.timetoken,
-                           payload: payload,
-                           file: file, 
-                           timetoken: msg.timetoken,
-                           publisher: msg.uuid || msg.producer,
-                           status: 'sent',
-                           actions: parseActions(msg) // Parse actions
-                       };
-                   });
-                   
-                   setMessages(history);
-                   
-                   if (history.length > 0) setStartTimetoken(history[0].timetoken);
-                   if (history.length < 20) setHasMore(false);
-                } else {
-                    setHasMore(false);
-                }
+                processMessages(response.channels);
             } catch (error) {
                 logger.error("Failed to fetch history:", error);
             }
@@ -98,6 +109,20 @@ const useMessages = (user) => {
         fetchHistory();
 
         const listener = {
+            status: (statusEvent) => {
+                if (statusEvent.category === 'PNReconnectedCategory') {
+                     logger.info("Reconnected, catching up...");
+                     pubnub.fetchMessages({
+                        channels: [CHANNEL],
+                        count: 20,
+                        includeMessageActions: true,
+                        includeMeta: true
+                    }).then(response => {
+                        processMessages(response.channels);
+                    });
+                }
+            },
+
             message: (event) => {
                 const msg = event.message;
 
@@ -220,7 +245,7 @@ const useMessages = (user) => {
             pubnub.removeListener(listener);
             pubnub.unsubscribe({ channels: [CHANNEL] });
         };
-    }, [pubnub, CHANNEL, permission, requestPermission, showNotification, user.id, playPop, playJoin]);
+    }, [pubnub, CHANNEL, permission, requestPermission, showNotification, user.id, playPop, playJoin, processMessages]);
 
     const fetchMore = useCallback(async () => {
         if (!startTimetoken || !hasMore || isLoadingMore) return;
@@ -234,37 +259,13 @@ const useMessages = (user) => {
                 includeMeta: true
             });
 
-            if (response.channels[CHANNEL] && response.channels[CHANNEL].length > 0) {
-                const olderMessages = response.channels[CHANNEL].map(msg => {
-                       let payload = msg.message;
-                       let file = null;
-                       if (msg.message.file && msg.message.message) {
-                           file = msg.message.file; payload = msg.message.message;
-                       } else if (msg.message.file) { file = msg.message.file; }
-
-                       return {
-                           id: msg.timetoken,
-                           payload: payload,
-                           file: file, 
-                           timetoken: msg.timetoken,
-                           publisher: msg.uuid || msg.producer,
-                           status: 'sent',
-                           actions: parseActions(msg)
-                       };
-                });
-                
-                setMessages(prev => [...olderMessages, ...prev]);
-                setStartTimetoken(olderMessages[0].timetoken);
-                if (olderMessages.length < 20) setHasMore(false);
-            } else {
-                setHasMore(false);
-            }
+            processMessages(response.channels, true);
         } catch (error) {
             logger.error("Failed to fetch more:", error);
         } finally {
             setIsLoadingMore(false);
         }
-    }, [pubnub, CHANNEL, startTimetoken, hasMore, isLoadingMore]);
+    }, [pubnub, CHANNEL, startTimetoken, hasMore, isLoadingMore, processMessages]);
 
     const sendMessage = useCallback(async (text) => {
         if (!text.trim() || !user) return;
