@@ -58,3 +58,20 @@ jobs:
           --build-arg VITE_PUBNUB_PUBLISH_KEY=${{ secrets.PROD_PUBNUB_PUBLISH_KEY }} \
           --build-arg VITE_PUBNUB_SUBSCRIBE_KEY=${{ secrets.PROD_PUBNUB_SUBSCRIBE_KEY }} \
           --tag app-prod
+
+  e2e-tests:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+    - name: Install dependencies
+      run: npm ci
+    - name: Install Playwright Browsers
+      run: npx playwright install --with-deps
+    - name: Run Playwright tests
+      run: npx playwright test
+
